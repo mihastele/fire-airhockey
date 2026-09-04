@@ -104,15 +104,19 @@ func TestPingGetsPong(t *testing.T) {
 	ws, peer := pipeConns(t)
 	defer ws.Close()
 	defer peer.Close()
+	// One writer: ping first, then the follow-up message (unmasked,
+	// test-only), so consumption order is deterministic. A second
+	// goroutine drains the pong reply concurrently: without a pending
+	// reader the pong write would block on the synchronous pipe.
 	go func() {
 		_, _ = peer.Write([]byte{0x89, 0x03, 'a', 'b', 'c'})
+		_, _ = peer.Write([]byte{0x81, 0x03, 'x', 'y', 'z'})
+	}()
+	go func() {
+		_ = peer.SetReadDeadline(time.Now().Add(2 * time.Second))
+		_, _ = peer.Read(make([]byte, 8))
 	}()
 	_ = ws.conn.SetReadDeadline(time.Now().Add(2 * time.Second))
-	// ReadMessage answers the ping internally; follow with a real message.
-	go func() {
-		frame := []byte{0x81, 0x03, 'x', 'y', 'z'} // unmasked, test-only
-		_, _ = peer.Write(frame)
-	}()
 	got, err := ws.ReadMessage()
 	if err != nil {
 		t.Fatal(err)

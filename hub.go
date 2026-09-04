@@ -185,12 +185,9 @@ func (c *Client) handle(raw []byte) {
 		if in.Public != nil {
 			public = *in.Public
 		}
-		title := in.Title
+		title := cleanTitle(in.Title)
 		if title == "" {
 			title = name + "'s game"
-		}
-		if len(title) > 48 {
-			title = title[:48]
 		}
 		if in.CPU {
 			public = false // practice tables stay out of the public list
@@ -279,6 +276,31 @@ func (c *Client) currentName() string {
 	return c.name
 }
 
+// cleanTitle trims a table name, collapses inner whitespace and caps length
+// (in runes, so multi-byte names are not sliced mid-character). Reports ""
+// for blank input so callers can fall back to a default.
+func cleanTitle(s string) string {
+	out := make([]rune, 0, 48)
+	space := false
+	for _, r := range s {
+		if r == ' ' || r == '\t' || r == '\n' || r == '\r' {
+			if len(out) > 0 {
+				space = true
+			}
+			continue
+		}
+		if len(out) >= 48 {
+			break
+		}
+		if space {
+			out = append(out, ' ')
+			space = false
+		}
+		out = append(out, r)
+	}
+	return string(out)
+}
+
 func cleanName(s string) string {
 	// Trim, collapse spaces, cap length. Keep it simple and safe for HTML
 	// (the frontend also injects names via textContent).
@@ -351,8 +373,19 @@ func (c *Client) joinRoom(id string) {
 		c.leaveRoom() // free the old seat first: no ghost players
 	}
 	room.mu.Lock()
-	seat := room.addPlayer(name)
+	dup := room.hasHuman(name)
+	seat := -1
+	if !dup {
+		seat = room.addPlayer(name)
+	}
 	room.mu.Unlock()
+	if dup {
+		// Same nickname already seated at this table (e.g. a second tab
+		// sharing the stored nickname): joining would mean playing against
+		// yourself, so refuse with a message that says how to proceed.
+		c.sendError("that nickname is already at this table — change nicknames to join")
+		return
+	}
 	if seat < 0 {
 		c.enterRoom(room, seatSpectator)
 	} else {
@@ -489,6 +522,10 @@ func (h *Hub) lobbyList() []any {
 			"host":    hostName(r),
 			"players": r.humanCount() + r.botCount(),
 			"playing": r.phase == PhasePlay || r.phase == PhaseCount || r.phase == PhaseGoal,
+			// open tells the lobby whether Join would actually seat a
+			// human: a free seat, or a CPU seat the joiner takes over.
+			// A table full of humans is watch-only (spectator).
+			"open": r.players[0] == nil || r.players[1] == nil || r.players[0].Bot || r.players[1].Bot,
 		}
 		r.mu.Unlock()
 		rooms = append(rooms, entry)

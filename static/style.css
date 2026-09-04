@@ -14,6 +14,10 @@
   --radius: 10px;
 }
 * { box-sizing: border-box; }
+/* Author display rules (e.g. .lobby, .game, .overlay) override the UA
+ * `[hidden] { display: none }` style, so hidden views and overlays would
+ * all stay visible at once. Re-assert it for every hidden element. */
+[hidden] { display: none !important; }
 html, body { margin: 0; padding: 0; }
 body {
   background: var(--bg);
@@ -83,6 +87,11 @@ input:focus { outline: 2px solid var(--ember); border-color: var(--ember); }
 .btn.primary .btn-sub { color: #5a2410; }
 .create-list { margin: 12px 0; }
 .offline-note { background: var(--panel-2); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.nick-line { margin: 0 0 4px; font-size: 14px; }
+.linklike {
+  background: none; border: none; padding: 0; cursor: pointer;
+  color: var(--ember); font: inherit; text-decoration: underline;
+}
 
 /* Lobby */
 .lobby { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }

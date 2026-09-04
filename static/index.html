@@ -26,13 +26,14 @@
       <input id="nick" maxlength="16" placeholder="e.g. Lightning" autocomplete="off">
     </label>
     <button id="btn-enter" class="btn primary">Enter lobby</button>
-    <p class="hint">Tip: open the game link in a second window to play against yourself while testing.</p>
+    <p class="hint">Tip: open the invite link in a second window and pick a different nickname to play against yourself while testing.</p>
   </section>
 
   <!-- 2. Lobby -->
   <section id="view-lobby" class="lobby" hidden>
     <div class="lobby-actions card">
       <h2>Find a game</h2>
+      <p class="muted nick-line">Playing as <b id="lobby-nick">…</b> · <button id="btn-changenick" class="linklike" type="button">change</button></p>
       <p id="lobby-offline" class="offline-note" hidden>Connecting to server… tables will appear when live.</p>
       <label class="field">
         <span>Table name (optional)</span>

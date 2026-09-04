@@ -105,8 +105,14 @@ function route(msg) {
   }
 }
 function onWelcome(msg) {
-  $("who").textContent = msg.name;
+  setNickUI(msg.name);
   // hello with a room triggers onRoom shortly; otherwise lobby arrives.
+}
+// Step 1 of the lobby flow is the nickname: keep every display of it in sync.
+function setNickUI(name) {
+  $("who").textContent = name;
+  const ln = $("lobby-nick");
+  if (ln) ln.textContent = name;
 }
 function onLobby(msg) {
   renderLobby(msg.rooms || []);
@@ -200,11 +206,31 @@ function renderLobby(rooms) {
     const link = document.createElement("button");
     link.className = "btn small";
     link.textContent = "Copy link";
+    link.title = "Copy the invite link for this table";
     link.onclick = () => copyLink(r.id);
     const join = document.createElement("button");
     join.className = "btn small primary";
-    join.textContent = "Join";
-    join.onclick = () => { sfx.click(); send({ t: "join", room: r.id }); };
+    const ownId = (store.room && store.room.id === r.id) || store.lastRoomId === r.id;
+    if (ownId) {
+      // Your own table: re-joining would just refresh the seat you hold.
+      join.textContent = "Yours";
+      join.disabled = true;
+      join.title = "This is your own table";
+    } else if (r.host && r.host === store.nick) {
+      // Same nickname already seated here (e.g. your other tab): the
+      // server would refuse the join, so don't offer it.
+      join.textContent = "Taken";
+      join.disabled = true;
+      join.title = "Your nickname is already seated at this table";
+    } else if (r.open === false) {
+      // Full of humans: joining only spectates, so say so.
+      join.textContent = "Watch";
+      join.title = "Table is full — join as spectator";
+      join.onclick = () => { sfx.click(); send({ t: "join", room: r.id }); };
+    } else {
+      join.textContent = "Join";
+      join.onclick = () => { sfx.click(); send({ t: "join", room: r.id }); };
+    }
     row.append(info, badge, link, join);
     box.append(row);
   }
@@ -535,7 +561,7 @@ $("btn-enter").onclick = () => {
   if (!v) { toast("Pick a nickname first"); return; }
   store.nick = cleanClientName(v);
   localStorage.setItem("fah_nick", store.nick);
-  $("who").textContent = store.nick;
+  setNickUI(store.nick);
   sfx.click();
   connect();
   if (ws && ws.readyState === WebSocket.OPEN) {
@@ -566,8 +592,23 @@ function createGuarded(payload) {
   send(payload);
   setTimeout(() => { store.creating = false; refreshLobbyButtons(); }, 5000);
 }
-$("btn-public").onclick = () => createGuarded({ t: "create", title: $("room-title").value.trim(), public: true });
-$("btn-private").onclick = () => createGuarded({ t: "create", title: $("room-title").value.trim(), public: false });
+// Step 2 of the lobby flow is naming the table: public and private tables
+// require an explicit name (practice tables are auto-named instead).
+function takeTableTitle() { return $("room-title").value.trim(); }
+function needTableTitle() {
+  if (takeTableTitle()) return true;
+  toast("Name your table first");
+  $("room-title").focus();
+  return false;
+}
+$("btn-public").onclick = () => {
+  if (!needTableTitle()) return;
+  createGuarded({ t: "create", title: takeTableTitle(), public: true });
+};
+$("btn-private").onclick = () => {
+  if (!needTableTitle()) return;
+  createGuarded({ t: "create", title: takeTableTitle(), public: false });
+};
 $("btn-cpu").onclick = () => createGuarded({ t: "create", title: "Practice", public: false, cpu: true });
 $("btn-join").onclick = () => {
   if (!needConn()) return;
@@ -583,6 +624,14 @@ function refreshLobbyButtons() {
   $("lobby-offline").hidden = connected();
 }
 $("join-code").addEventListener("keydown", (e) => { if (e.key === "Enter") $("btn-join").click(); });
+$("btn-changenick").onclick = () => {
+  // Back to step 1 (nickname) without leaving the lobby connection:
+  // re-entering sends a fresh hello that renames this client.
+  sfx.click();
+  $("nick").value = store.nick || "";
+  show("view-nick");
+  setTimeout(() => $("nick").focus(), 50);
+};
 function extractCode(s) {
   s = (s || "").trim();
   if (!s) return null;
@@ -618,7 +667,7 @@ $("btn-leave").onclick = backToLobby;
 (function boot() {
   const pending = pendingRoomFromURL();
   if (store.nick) {
-    $("who").textContent = store.nick;
+    setNickUI(store.nick);
     store.joinPending = !!pending;
     connect();
     refreshLobbyButtons();

@@ -126,6 +126,18 @@ func (r *Room) humanCount() int {
 	return n
 }
 
+// hasHuman reports whether a human seat already holds name. Bots are
+// excluded: a player may always take over a CPU seat.
+// Call with the room lock held.
+func (r *Room) hasHuman(name string) bool {
+	for _, p := range r.players {
+		if p != nil && !p.Bot && p.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
 // botCount reports seats held by bots.
 func (r *Room) botCount() int {
 	n := 0

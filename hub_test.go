@@ -149,6 +149,137 @@ func TestRematchAloneResetsToWait(t *testing.T) {
 	}
 }
 
+// Joining a table where your nickname is already seated must be refused:
+// otherwise a second tab (which shares the stored nickname) ends up playing
+// against itself.
+func TestSameNickCannotJoinOwnTable(t *testing.T) {
+	h := NewHub()
+	a := newTestClient(t, h)
+	b := newTestClient(t, h)
+	a.handle([]byte(`{"t":"hello","name":"Ann"}`))
+	a.handle([]byte(`{"t":"create","title":"Solo Table","public":true}`))
+	r := a.testRoom()
+	if r == nil {
+		t.Fatal("no room created")
+	}
+	b.handle([]byte(`{"t":"hello","name":"Ann"}`))
+	b.handle([]byte(`{"t":"join","room":"` + r.ID + `"}`))
+	if got := b.testRoom(); got != nil {
+		t.Fatal("same-nick second connection must not enter the table")
+	}
+	if got := b.testSeat(); got != seatLobby {
+		t.Fatalf("refused joiner must stay in the lobby, seat=%d", got)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	n := 0
+	for _, p := range r.players {
+		if p != nil && !p.Bot {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("expected exactly one human seated, got %d", n)
+	}
+}
+
+// The same rule applies to invite links: hello with a room id while another
+// connection already holds that nickname there must not seat a second copy.
+func TestSameNickInviteLinkRefused(t *testing.T) {
+	h := NewHub()
+	a := newTestClient(t, h)
+	a.handle([]byte(`{"t":"hello","name":"Ann"}`))
+	a.handle([]byte(`{"t":"create","title":"Solo Table","public":false}`))
+	r := a.testRoom()
+	if r == nil {
+		t.Fatal("no room created")
+	}
+	b := newTestClient(t, h)
+	b.handle([]byte(`{"t":"hello","name":"Ann","room":"` + r.ID + `"}`))
+	if got := b.testRoom(); got != nil {
+		t.Fatal("same-nick invite join must not enter the table")
+	}
+}
+
+// Blank table names fall back to "<nick>'s game"; long names are capped.
+func TestCreateTitleCleaning(t *testing.T) {
+	h := NewHub()
+	c := newTestClient(t, h)
+	c.handle([]byte(`{"t":"hello","name":"Ann"}`))
+	c.handle([]byte(`{"t":"create","title":"   ","public":true}`))
+	r := c.testRoom()
+	if r == nil {
+		t.Fatal("no room created")
+	}
+	r.mu.Lock()
+	title := r.Title
+	r.mu.Unlock()
+	if title != "Ann's game" {
+		t.Fatalf("expected default title, got %q", title)
+	}
+	long := ""
+	for i := 0; i < 60; i++ {
+		long += "x"
+	}
+	c.handle([]byte(`{"t":"create","title":"` + long + `","public":true}`))
+	r2 := c.testRoom()
+	r2.mu.Lock()
+	defer r2.mu.Unlock()
+	if n := len([]rune(r2.Title)); n != 48 {
+		t.Fatalf("expected title capped at 48 runes, got %d", n)
+	}
+}
+
+// Lobby entries report open=false once two humans hold the seats, so the UI
+// can offer Watch (spectate) instead of a Join that would not seat anyone.
+func TestLobbyOpenFlag(t *testing.T) {
+	h := NewHub()
+	a := newTestClient(t, h)
+	a.handle([]byte(`{"t":"hello","name":"Ann"}`))
+	a.handle([]byte(`{"t":"create","title":"x","public":true}`))
+	r := a.testRoom()
+	open := lobbyOpen(t, h, r.ID)
+	if !open {
+		t.Fatal("one-player table must be joinable")
+	}
+	b := newTestClient(t, h)
+	b.handle([]byte(`{"t":"hello","name":"Bob","room":"` + r.ID + `"}`))
+	if lobbyOpen(t, h, r.ID) {
+		t.Fatal("two-human table must be reported as not open")
+	}
+}
+
+func lobbyOpen(t *testing.T, h *Hub, id string) bool {
+	t.Helper()
+	for _, e := range h.lobbyList() {
+		m, ok := e.(map[string]any)
+		if !ok || m["id"] != id {
+			continue
+		}
+		open, _ := m["open"].(bool)
+		return open
+	}
+	t.Fatalf("room %s missing from lobby", id)
+	return false
+}
+
+// A different nickname may still take over the CPU seat.
+func TestOtherNickTakesBotSeat(t *testing.T) {
+	h := NewHub()
+	a := newTestClient(t, h)
+	a.handle([]byte(`{"t":"hello","name":"Solo"}`))
+	a.handle([]byte(`{"t":"create","title":"p","cpu":true}`))
+	r := a.testRoom()
+	if r == nil {
+		t.Fatal("no room created")
+	}
+	b := newTestClient(t, h)
+	b.handle([]byte(`{"t":"hello","name":"Bob","room":"` + r.ID + `"}`))
+	if b.testSeat() != 1 {
+		t.Fatalf("expected Bob to take the CPU seat, got %d", b.testSeat())
+	}
+}
+
 // Creating a second table must free the seat in the first (no ghosts).
 func TestCreateLeavesPreviousRoom(t *testing.T) {
 	h := NewHub()
