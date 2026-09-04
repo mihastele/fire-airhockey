@@ -460,6 +460,11 @@ function Y(cy) {
   const v = RAIL + (cy / 200) * (LH - 2 * RAIL);
   return store.seat === 1 ? LH - v : v;
 }
+// Static field markings (rails, goals, labels): the field itself is
+// symmetric, so these always use unmirrored screen coords — YOU at the
+// bottom, opponent at the top. Only dynamic entities (puck, paddles)
+// use the mirrored Y() above.
+function SY(cy) { return RAIL + (cy / 200) * (LH - 2 * RAIL); }
 function Y01(cy) { return Y(cy) / LH; }
 
 const COL = { you: "#ff5a1f", foe: "#46d9ff", line: "#2b6b5e", dim: "#8fa9a2" };
@@ -485,8 +490,8 @@ function drawTable() {
   // side rails
   ctx.beginPath(); ctx.moveTo(RAIL / 2, 0); ctx.lineTo(RAIL / 2, LH); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(LW - RAIL / 2, 0); ctx.lineTo(LW - RAIL / 2, LH); ctx.stroke();
-  // glowing goal mouths
-  const gyT = Y(0), gyB = Y(200);
+  // glowing goal mouths (static: YOU always at the bottom)
+  const gyT = SY(0), gyB = SY(200);
   ctx.strokeStyle = COL.foe; ctx.lineWidth = 5;
   ctx.beginPath(); ctx.moveTo(cx0, gyT); ctx.lineTo(cx1, gyT); ctx.stroke();
   ctx.strokeStyle = COL.you;
@@ -506,15 +511,15 @@ function drawTable() {
   // faceoff dots
   ctx.fillStyle = COL.dim;
   for (const [fx, fy] of [[30, 55], [70, 55], [30, 145], [70, 145]]) {
-    ctx.beginPath(); ctx.arc(X(fx), Y(fy), 5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(X(fx), SY(fy), 5, 0, Math.PI * 2); ctx.fill();
   }
-  // name labels
+  // name labels (static screen spots: opponent on top, YOU at bottom)
   ctx.font = "700 17px sans-serif";
   ctx.textAlign = "center";
   ctx.fillStyle = "#7d8b87";
   const top = playerName(topSeat()), bot = playerName(bottomSeat());
-  ctx.fillText(top || "Waiting for opponent…", LW / 2, Y(18) + 6);
-  ctx.fillText(bottomSeat() === store.seat ? `YOU · ${bot || "…"}` : (bot || "…"), LW / 2, Y(182) - 10);
+  ctx.fillText(top || "Waiting for opponent…", LW / 2, SY(18) + 6);
+  ctx.fillText(bottomSeat() === store.seat ? `YOU · ${bot || "…"}` : (bot || "…"), LW / 2, SY(182) - 10);
 }
 
 function drawSprite(sx, sy, rad, color, dome) {
