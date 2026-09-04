@@ -61,6 +61,7 @@ function setConn(on) {
   const el = $("conn");
   el.textContent = on ? "● live" : "● offline";
   el.className = "conn " + (on ? "on" : "off");
+  refreshLobbyButtons();
 }
 function send(obj) {
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj));
@@ -75,7 +76,7 @@ function connect() {
     if (store.nick) {
       const hello = { t: "hello", name: store.nick };
       const pending = store.lastRoomId || pendingRoomFromURL();
-      if (pending) hello.room = pending;
+      if (pending) { hello.room = pending; store.joinPending = true; }
       send(hello);
     }
   };
@@ -115,6 +116,9 @@ function onRoom(msg) {
   const first = !store.room;
   store.room = msg;
   store.seat = msg.you;
+  store.creating = false;
+  store.joinPending = false;
+  refreshLobbyButtons();
   if (msg.phase === "wait" || msg.phase === "count" || msg.phase === "play") store.rematchPending = false;
   store.lastRoomId = msg.id;
   history.replaceState({}, "", "/r/" + msg.id);
@@ -147,7 +151,13 @@ function onGoal(scorer) {
 }
 function onError(msg) {
   toast(msg.msg || "Something went wrong");
-  if (!store.room && store.nick) show("view-lobby");
+  store.creating = false;
+  refreshLobbyButtons();
+  if (store.joinPending) {
+    // Our join failed (e.g. stale link): don't linger on a dead table.
+    store.joinPending = false;
+    backToLobby();
+  } else if (!store.room && store.nick) show("view-lobby");
 }
 
 /* ---------- screens ---------- */
@@ -253,53 +263,55 @@ function scoreCard(el, seatIdx, tag) {
 function updateRoomUI() {
   const r = store.room;
   if (!r) return;
-  $("side-title").textContent = r.title || "Table";
-  const link = inviteURL(r.id);
-  $("invite-link").value = link;
-  $("invite-link-2").value = link;
-  const sp = $("side-players");
-  sp.innerHTML = "";
-  sp.className = "side-players";
-  for (let i = 0; i < 2; i++) {
-    const p = r.players && r.players[i];
-    const row = document.createElement("div");
-    row.className = "p";
-    const nm = document.createElement("span");
-    nm.textContent = (p ? p.name : "— empty —") + (i === store.seat ? "  (you)" : "") + (p && p.bot ? "  [CPU]" : "");
-    const sc = document.createElement("span");
-    sc.textContent = p ? p.score : "";
-    row.append(nm, sc);
-    sp.append(row);
-  }
+  const iAmSeated = store.seat === 0 || store.seat === 1;
+  const other = iAmSeated ? r.players && r.players[1 - store.seat] : null;
+
+  // Waiting overlay: invite link, who's here, CPU fallback.
+  $("invite-link").value = inviteURL(r.id);
   const wp = $("wait-players");
   wp.innerHTML = "";
   for (let i = 0; i < 2; i++) {
     const p = r.players && r.players[i];
-    if (!p) continue;
     const d = document.createElement("div");
     d.className = "p";
-    d.textContent = p.name + (i === store.seat ? " (you)" : "") + (p.bot ? " [CPU]" : "");
+    d.textContent = p
+      ? p.name + (i === store.seat ? " (you)" : "") + (p.bot ? "  ·  CPU" : "")
+      : "Waiting for player…";
     wp.append(d);
   }
-  // Buttons reflect what I can do right now.
-  const otherEmpty = !r.players || !r.players[1 - store.seat];
-  const iAmSeated = store.seat === 0 || store.seat === 1;
-  const showCPU = r.phase === "wait" && iAmSeated && otherEmpty;
-  $("btn-addcpu").style.display = showCPU ? "" : "none";
-  $("btn-addcpu-2").style.display = showCPU ? "" : "none";
-  const canRematch = r.phase === "over" && iAmSeated;
-  $("btn-rematch-2").disabled = !canRematch;
-  $("btn-rematch-2").textContent = store.rematchPending ? "Waiting for opponent…" : "Rematch";
+  $("btn-addcpu").style.display = (r.phase === "wait" && iAmSeated && !other) ? "" : "none";
+
+  // Control bar under the table: exactly one copy button, one leave button.
+  $("table-code").textContent = "Table " + r.id;
+  $("game-status").textContent =
+    r.phase === "wait" ? "Share the link so someone joins you"
+    : r.phase === "over" ? ""
+    : "First to 7 wins";
+  // The waiting overlay already has a copy button; don't show two at once.
+  $("btn-copylink").style.display = r.phase === "wait" ? "none" : "";
+
+  // Game-over overlay.
   const over = r.phase === "over";
   $("ov-over").hidden = !over;
   if (over) {
     const w = r.winner;
-    $("over-title").textContent =
-      store.seat >= 0 ? (w === store.seat ? "You win!" : (w >= 0 ? `${playerName(w) || "Opponent"} wins` : "Game over"))
-                      : (w >= 0 ? `${playerName(w) || "Someone"} wins` : "Game over");
     const s = scoresOf(r);
-    $("over-sub").textContent = `${s[0]} – ${s[1]}${r.reason ? " · " + r.reason : ""}`;
-    $("btn-rematch").disabled = !iAmSeated;
+    const left = !!r.reason;
+    if (store.seat < 0) {
+      $("over-title").textContent = w >= 0 ? `${playerName(w) || "Someone"} wins` : "Game over";
+    } else if (left) {
+      $("over-title").textContent = w === store.seat ? "Opponent left" : `${playerName(w) || "Opponent"} wins`;
+    } else {
+      $("over-title").textContent = w === store.seat ? "You win!" : `${playerName(w) || "Opponent"} wins`;
+    }
+    let sub = `${s[0]} – ${s[1]}`;
+    if (left) sub += w === store.seat ? " · you take the win" : " · opponent left";
+    if (!other && iAmSeated) sub += " · share the link for a new challenger";
+    $("over-sub").textContent = sub;
+    // Rematch only makes sense when an opponent is still here.
+    const canRematch = iAmSeated && !!other;
+    $("btn-rematch").style.display = canRematch ? "" : "none";
+    $("btn-rematch").disabled = !canRematch;
     $("btn-rematch").textContent = store.rematchPending ? "Waiting…" : "Rematch";
     if (w === store.seat && !updateRoomUI._winned) sfx.win();
     updateRoomUI._winned = true;
@@ -529,23 +541,47 @@ $("btn-enter").onclick = () => {
   if (ws && ws.readyState === WebSocket.OPEN) {
     const hello = { t: "hello", name: store.nick };
     const p = pendingRoomFromURL();
-    if (p) hello.room = p;
+    if (p) { hello.room = p; store.joinPending = true; }
     send(hello);
   }
-  if (pendingRoomFromURL()) show("view-game"); else show("view-lobby");
+  if (pendingRoomFromURL()) { store.joinPending = true; show("view-game"); } else show("view-lobby");
 };
 $("nick").addEventListener("keydown", (e) => { if (e.key === "Enter") $("btn-enter").click(); });
 
 function cleanClientName(s) { return s.replace(/\s+/g, " ").trim().slice(0, 16); }
 
-$("btn-public").onclick = () => { sfx.click(); send({ t: "create", title: $("room-title").value.trim(), public: true }); };
-$("btn-private").onclick = () => { sfx.click(); send({ t: "create", title: $("room-title").value.trim(), public: false }); };
-$("btn-cpu").onclick = () => { sfx.click(); send({ t: "create", title: "Practice", public: false, cpu: true }); };
+// One in-flight create at a time: guards against double-click ghost tables.
+// Never fail silently: an offline click explains itself instead of looking dead.
+function needConn() {
+  if (connected()) return true;
+  toast("Still connecting to the server — try again in a moment");
+  return false;
+}
+function createGuarded(payload) {
+  if (store.creating) return;
+  if (!needConn()) return;
+  store.creating = true;
+  refreshLobbyButtons();
+  sfx.click();
+  send(payload);
+  setTimeout(() => { store.creating = false; refreshLobbyButtons(); }, 5000);
+}
+$("btn-public").onclick = () => createGuarded({ t: "create", title: $("room-title").value.trim(), public: true });
+$("btn-private").onclick = () => createGuarded({ t: "create", title: $("room-title").value.trim(), public: false });
+$("btn-cpu").onclick = () => createGuarded({ t: "create", title: "Practice", public: false, cpu: true });
 $("btn-join").onclick = () => {
+  if (!needConn()) return;
   const code = extractCode($("join-code").value);
   if (!code) { toast("Paste an invite link or table code"); return; }
+  store.joinPending = true;
   sfx.click(); send({ t: "join", room: code });
 };
+function connected() { return !!(ws && ws.readyState === WebSocket.OPEN); }
+function refreshLobbyButtons() {
+  const off = !connected() || store.creating;
+  for (const id of ["btn-public", "btn-private", "btn-cpu", "btn-join"]) $(id).disabled = off;
+  $("lobby-offline").hidden = connected();
+}
 $("join-code").addEventListener("keydown", (e) => { if (e.key === "Enter") $("btn-join").click(); });
 function extractCode(s) {
   s = (s || "").trim();
@@ -556,18 +592,17 @@ function extractCode(s) {
   return raw || null;
 }
 
-$("btn-copy").onclick = () => copyLink(store.room.id);
-$("btn-copy-2").onclick = () => copyLink(store.room.id);
-$("btn-addcpu").onclick = () => { sfx.click(); send({ t: "addcpu" }); };
-$("btn-addcpu-2").onclick = () => { sfx.click(); send({ t: "addcpu" }); };
+$("btn-copy").onclick = () => { if (store.room) copyLink(store.room.id); };
+$("btn-copylink").onclick = () => { if (store.room) copyLink(store.room.id); };
+$("btn-addcpu").onclick = () => { if (!needConn()) return; sfx.click(); send({ t: "addcpu" }); };
 function requestRematch() {
+  if (!needConn()) return;
   sfx.click();
   store.rematchPending = true;
   send({ t: "rematch" });
   updateRoomUI();
 }
 $("btn-rematch").onclick = requestRematch;
-$("btn-rematch-2").onclick = requestRematch;
 function backToLobby() {
   sfx.click();
   send({ t: "leave" });
@@ -584,7 +619,9 @@ $("btn-leave").onclick = backToLobby;
   const pending = pendingRoomFromURL();
   if (store.nick) {
     $("who").textContent = store.nick;
+    store.joinPending = !!pending;
     connect();
+    refreshLobbyButtons();
     show(pending ? "view-game" : "view-lobby");
   } else {
     show("view-nick");

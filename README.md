@@ -13,7 +13,11 @@ browser windows and play against each other.
   physics stay on a fair top-down plane.
 - **Practice vs CPU** if no opponent is around. Spectators can watch.
 - Server-authoritative physics at 60 Hz, snapshots at 30 Hz with client-side
-  puck interpolation. First to 7 wins, rematch included.
+  puck interpolation. First to 7 wins.
+- Fair match rules: leaving during countdown just reopens the table (nobody
+  wins a game that never started); leaving mid-game concedes it. Rematch
+  works against humans and the CPU; alone at a finished table it resets to a
+  fresh waiting table for the next challenger.
 
 ## Run it
 

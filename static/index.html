@@ -33,14 +33,24 @@
   <section id="view-lobby" class="lobby" hidden>
     <div class="lobby-actions card">
       <h2>Find a game</h2>
+      <p id="lobby-offline" class="offline-note" hidden>Connecting to server… tables will appear when live.</p>
       <label class="field">
         <span>Table name (optional)</span>
         <input id="room-title" maxlength="48" placeholder="Friday showdown" autocomplete="off">
       </label>
-      <div class="btn-row">
-        <button id="btn-public" class="btn primary">Create public table</button>
-        <button id="btn-private" class="btn">Create private table</button>
-        <button id="btn-cpu" class="btn">Practice vs CPU</button>
+      <div class="create-list">
+        <button id="btn-public" class="btn primary block">
+          <span class="btn-title">Create public table</span>
+          <span class="btn-sub">Listed here — anyone can join, link works too</span>
+        </button>
+        <button id="btn-private" class="btn block">
+          <span class="btn-title">Create private table</span>
+          <span class="btn-sub">Hidden — only people with your link can join</span>
+        </button>
+        <button id="btn-cpu" class="btn block">
+          <span class="btn-title">Practice vs CPU</span>
+          <span class="btn-sub">Instant solo game against the computer</span>
+        </button>
       </div>
       <div class="join-row">
         <input id="join-code" maxlength="12" placeholder="Have a code or link? paste it" autocomplete="off" spellcheck="false">
@@ -53,54 +63,48 @@
     </div>
   </section>
 
-  <!-- 3. Game -->
+  <!-- 3. Game: one table, one control bar, overlays per phase -->
   <section id="view-game" class="game" hidden>
-    <div class="game-layout">
-      <div class="table-col">
-        <div id="score-top" class="score-card"></div>
-        <div class="canvas-wrap">
-          <canvas id="table"></canvas>
-          <div id="ov-wait" class="overlay" hidden>
-            <div class="ov-box">
-              <h2>Waiting for opponent…</h2>
-              <p class="muted">Share this link — anyone opening it joins your table:</p>
-              <div class="invite-row">
-                <input id="invite-link" readonly spellcheck="false">
-                <button id="btn-copy" class="btn small">Copy</button>
-              </div>
-              <div id="wait-players" class="wait-players"></div>
-              <button id="btn-addcpu" class="btn">Play CPU instead</button>
+    <div class="table-col">
+      <div id="score-top" class="score-card"></div>
+      <div class="canvas-wrap">
+        <canvas id="table"></canvas>
+        <div id="ov-wait" class="overlay" hidden>
+          <div class="ov-box">
+            <h2>Waiting for opponent…</h2>
+            <p class="muted">Share this link — anyone opening it joins your table:</p>
+            <div class="invite-row">
+              <input id="invite-link" readonly spellcheck="false">
+              <button id="btn-copy" class="btn small">Copy</button>
             </div>
+            <div id="wait-players" class="wait-players"></div>
+            <button id="btn-addcpu" class="btn">Play against CPU instead</button>
           </div>
-          <div id="ov-count" class="overlay transparent" hidden><div id="count-num" class="count-num">3</div></div>
-          <div id="ov-flash" class="overlay transparent" hidden><div id="flash-text" class="flash-text">GOAL!</div></div>
-          <div id="ov-over" class="overlay" hidden>
-            <div class="ov-box">
-              <h2 id="over-title">You win!</h2>
-              <p id="over-sub" class="muted"></p>
-              <div class="btn-row center">
-                <button id="btn-rematch" class="btn primary">Rematch</button>
-                <button id="btn-lobby" class="btn">Back to lobby</button>
-              </div>
+        </div>
+        <div id="ov-count" class="overlay transparent" hidden>
+          <div><div class="count-label">Get ready</div><div id="count-num" class="count-num">3</div></div>
+        </div>
+        <div id="ov-flash" class="overlay transparent" hidden><div id="flash-text" class="flash-text">GOAL!</div></div>
+        <div id="ov-over" class="overlay" hidden>
+          <div class="ov-box">
+            <h2 id="over-title">You win!</h2>
+            <p id="over-sub" class="muted"></p>
+            <div class="btn-row center">
+              <button id="btn-rematch" class="btn primary">Rematch</button>
+              <button id="btn-lobby" class="btn">Back to lobby</button>
             </div>
           </div>
         </div>
-        <div id="score-bottom" class="score-card"></div>
       </div>
-      <aside class="side-col card">
-        <h3 id="side-title">Table</h3>
-        <div id="side-players"></div>
-        <div class="invite-row">
-          <input id="invite-link-2" readonly spellcheck="false" aria-label="invite link">
-          <button id="btn-copy-2" class="btn small">Copy link</button>
-        </div>
-        <div class="btn-col">
-          <button id="btn-addcpu-2" class="btn">Add CPU opponent</button>
-          <button id="btn-rematch-2" class="btn">Rematch</button>
-          <button id="btn-leave" class="btn danger">Leave table</button>
-        </div>
-        <p class="hint">Drag your mallet with mouse or finger. You always play from the bottom — your opponent sees the mirrored side.</p>
-      </aside>
+      <div id="score-bottom" class="score-card"></div>
+      <div class="game-bar">
+        <span id="table-code" class="code-chip" title="Table code"></span>
+        <span id="game-status" class="muted"></span>
+        <span class="spacer"></span>
+        <button id="btn-copylink" class="btn small">Copy invite link</button>
+        <button id="btn-leave" class="btn small">Leave table</button>
+      </div>
+      <p class="hint center">Drag your mallet with mouse or finger. You always play from the bottom.</p>
     </div>
   </section>
 </main>

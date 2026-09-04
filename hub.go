@@ -128,16 +128,7 @@ func (h *Hub) disconnect(c *Client) {
 		if p := room.players[seat]; p != nil {
 			name = p.Name
 		}
-		live := room.phase == PhasePlay || room.phase == PhaseCount || room.phase == PhaseGoal
-		room.removeSeat(seat)
-		if live {
-			if room.players[1-seat] != nil {
-				room.forfeit(seat) // someone remains: the leaver forfeits
-			} else {
-				room.phase = PhaseWait
-				room.changed = true
-			}
-		}
+		room.dropSeat(seat)
 		room.mu.Unlock()
 		log.Printf("client %q left room %s (seat %d name %q)", c.name, room.ID, seat, name)
 		h.broadcastRoom(room)
@@ -204,6 +195,12 @@ func (c *Client) handle(raw []byte) {
 		if in.CPU {
 			public = false // practice tables stay out of the public list
 		}
+		c.mu.Lock()
+		seated := c.room != nil
+		c.mu.Unlock()
+		if seated {
+			c.leaveRoom() // abandon the old table first: no ghost players
+		}
 		room := h.newRoom(title, public)
 		seat := -1
 		room.mu.Lock()
@@ -243,11 +240,19 @@ func (c *Client) handle(raw []byte) {
 			return
 		}
 		room.mu.Lock()
-		room.rematch[seat] = true
-		other := 1 - seat
-		otherOK := room.players[other] == nil || room.players[other].Bot || room.rematch[other]
-		if room.phase == PhaseOver && room.bothPresent() && otherOK {
-			room.startCountdown()
+		if room.phase == PhaseOver && room.players[seat] != nil && !room.players[seat].Bot {
+			room.rematch[seat] = true
+			other := 1 - seat
+			switch {
+			case room.players[other] == nil:
+				// Opponent is gone: reset to a fresh table awaiting the
+				// next challenger instead of a dead rematch button.
+				room.resetToWait()
+			case room.players[other].Bot || room.rematch[other]:
+				if room.bothPresent() {
+					room.startCountdown()
+				}
+			}
 		}
 		room.mu.Unlock()
 		h.broadcastRoom(room)
@@ -335,6 +340,16 @@ func (c *Client) joinRoom(id string) {
 		c.sendError("pick a nickname first")
 		return
 	}
+	c.mu.Lock()
+	cur := c.room
+	c.mu.Unlock()
+	if cur != nil {
+		if cur.ID == id {
+			h.broadcastRoom(cur) // already here: just refresh state
+			return
+		}
+		c.leaveRoom() // free the old seat first: no ghost players
+	}
 	room.mu.Lock()
 	seat := room.addPlayer(name)
 	room.mu.Unlock()
@@ -360,16 +375,7 @@ func (c *Client) leaveRoom() {
 	c.mu.Unlock()
 	if room != nil && seat >= 0 {
 		room.mu.Lock()
-		live := room.phase == PhasePlay || room.phase == PhaseCount || room.phase == PhaseGoal
-		room.removeSeat(seat)
-		if live {
-			if room.players[1-seat] != nil {
-				room.forfeit(seat) // someone remains: the leaver forfeits
-			} else {
-				room.phase = PhaseWait
-				room.changed = true
-			}
-		}
+		room.dropSeat(seat)
 		room.mu.Unlock()
 		c.hub.broadcastRoom(room)
 	}

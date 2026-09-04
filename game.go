@@ -219,9 +219,9 @@ func (r *Room) setTarget(seat int, x, y float64) {
 	}
 }
 
-// forfeit ends the match because seat left; the other seat wins.
+// forfeit ends a live match because seat left; the other seat wins.
 func (r *Room) forfeit(seat int) {
-	if r.phase != PhasePlay && r.phase != PhaseCount && r.phase != PhaseGoal {
+	if r.phase != PhasePlay && r.phase != PhaseGoal {
 		return
 	}
 	other := 1 - seat
@@ -232,6 +232,46 @@ func (r *Room) forfeit(seat int) {
 		r.winner = other
 		r.winReason = "opponent left"
 	}
+	r.changed = true
+}
+
+// dropSeat frees a seat after a leave or disconnect. A drop during live play
+// concedes the match to whoever remains; a drop during countdown (the game
+// never started) or any idle phase just sends the room back to waiting —
+// nobody "wins" a game that never began.
+func (r *Room) dropSeat(seat int) {
+	if seat < 0 || seat > 1 {
+		return
+	}
+	counting := r.phase == PhaseCount
+	r.removeSeat(seat)
+	switch {
+	case counting:
+		r.phase = PhaseWait
+		r.changed = true
+	case r.phase == PhasePlay || r.phase == PhaseGoal:
+		if r.players[1-seat] != nil {
+			r.forfeit(seat)
+		} else {
+			r.phase = PhaseWait
+			r.changed = true
+		}
+	}
+}
+
+// resetToWait clears a finished match so the table is fresh for the next
+// challenger. The seated player stays seated.
+func (r *Room) resetToWait() {
+	for _, p := range r.players {
+		if p != nil {
+			p.Score = 0
+		}
+	}
+	r.rematch = [2]bool{}
+	r.winner = -1
+	r.winReason = ""
+	r.resetPositions(0)
+	r.phase = PhaseWait
 	r.changed = true
 }
 
@@ -266,7 +306,8 @@ func (r *Room) tick(dt float64) bool {
 		}
 	case PhasePlay:
 		r.stepPlay(dt)
-		out = true
+		// No out=true here: 30 Hz snapshots carry live play. Room meta is
+		// only rebroadcast when something actually changed (goals set it).
 	case PhaseGoal:
 		r.phaseT -= dt
 		r.stepPaddles(dt) // let mallets glide home during the pause
