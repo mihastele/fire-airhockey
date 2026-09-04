@@ -273,6 +273,11 @@ function bottomSeat() { return store.seat === 1 ? 1 : 0; }
 function scoreCard(el, seatIdx, tag) {
   const name = playerName(seatIdx);
   const sc = store.snap ? store.snap.sc[seatIdx] : scoresOf(store.room)[seatIdx];
+  // Rebuild only when something visible changed: this runs at 30 Hz and the
+  // top card now holds the Leave button, which a mid-tap rebuild could eat.
+  const key = [seatIdx, store.seat, name || "", sc, tag || "", el.id || ""].join("|");
+  if (el._key === key) return;
+  el._key = key;
   el.innerHTML = "";
   const nm = document.createElement("span");
   nm.className = "nm";
@@ -283,6 +288,15 @@ function scoreCard(el, seatIdx, tag) {
   el.append(nm);
   if (tag) { const t = document.createElement("span"); t.className = "you-tag"; t.textContent = tag; el.append(t); }
   el.append(score);
+  if (el.id === "score-top") {
+    const leave = document.createElement("button");
+    leave.className = "leave-btn";
+    leave.type = "button";
+    leave.textContent = "Leave";
+    leave.title = "Leave this table";
+    leave.onclick = backToLobby;
+    el.append(leave);
+  }
   el.classList.toggle("me", seatIdx === store.seat);
   el.classList.toggle("foe", seatIdx !== store.seat);
 }
@@ -307,15 +321,6 @@ function updateRoomUI() {
     wp.append(d);
   }
   $("btn-addcpu").style.display = (r.phase === "wait" && iAmSeated && !other) ? "" : "none";
-
-  // Control bar under the table: exactly one copy button, one leave button.
-  $("table-code").textContent = "Table " + r.id;
-  $("game-status").textContent =
-    r.phase === "wait" ? "Share the link so someone joins you"
-    : r.phase === "over" ? ""
-    : "First to 7 wins";
-  // The waiting overlay already has a copy button; don't show two at once.
-  $("btn-copylink").style.display = r.phase === "wait" ? "none" : "";
 
   // Game-over overlay.
   const over = r.phase === "over";
@@ -424,10 +429,6 @@ function fitGame() {
     const el = $(id);
     if (el) chrome += el.getBoundingClientRect().height + 8;
   }
-  const gb = document.querySelector("#view-game .game-bar");
-  if (gb) chrome += gb.getBoundingClientRect().height + 8;
-  const hint = document.querySelector("#view-game .hint");
-  if (hint && getComputedStyle(hint).display !== "none") chrome += hint.getBoundingClientRect().height + 8;
   const availH = vpH - chrome;
   const availW = Math.min(vpW * 0.92, 440);
   let w = Math.min(availW, availH / 2);
@@ -688,7 +689,6 @@ function extractCode(s) {
 }
 
 $("btn-copy").onclick = () => { if (store.room) copyLink(store.room.id); };
-$("btn-copylink").onclick = () => { if (store.room) copyLink(store.room.id); };
 $("btn-addcpu").onclick = () => { if (!needConn()) return; sfx.click(); send({ t: "addcpu" }); };
 function requestRematch() {
   if (!needConn()) return;
@@ -707,7 +707,6 @@ function backToLobby() {
   show("view-lobby");
 }
 $("btn-lobby").onclick = backToLobby;
-$("btn-leave").onclick = backToLobby;
 
 /* ---------- boot ---------- */
 (function boot() {

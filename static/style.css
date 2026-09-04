@@ -112,26 +112,14 @@ input:focus { outline: 2px solid var(--ember); border-color: var(--ember); }
 .badge.live { color: var(--ember); border-color: var(--ember-dark); }
 .badge.open { color: var(--win); border-color: #3c6b3c; }
 
-/* Game — the whole table (scores + board + bar) always fits the viewport. */
+/* Game — score cards + board always fit the viewport. */
 .game { display: flex; justify-content: center; align-items: flex-start; width: 100%; }
 .table-col {
   display: flex; flex-direction: column; gap: 8px;
-  width: min(92vw, 420px, calc((100vh - 330px) * 0.5));
-  width: min(92vw, 420px, calc((100dvh - 330px) * 0.5));
+  width: min(92vw, 440px, calc((100vh - 250px) * 0.5));
+  width: min(92vw, 440px, calc((100dvh - 250px) * 0.5));
   min-width: 0;
 }
-.game-bar {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  background: var(--panel); border: 1px solid var(--line);
-  border-radius: 8px; padding: 8px 10px; font-size: 14px;
-}
-.game-bar .spacer { flex: 1; }
-.code-chip {
-  font-weight: 800; letter-spacing: 1px; white-space: nowrap;
-  background: #100d0b; border: 1px solid var(--ember-dark); color: var(--ember);
-  border-radius: 6px; padding: 4px 8px;
-}
-.hint.center { text-align: center; }
 .count-label { font-size: 15px; color: var(--muted); letter-spacing: 2px; }
 
 .score-card {
@@ -143,7 +131,13 @@ input:focus { outline: 2px solid var(--ember); border-color: var(--ember); }
 .score-card .sc { font-size: clamp(20px, 5.5vw + 8px, 28px); font-weight: 800; flex: none; }
 .score-card.me { border-color: var(--ember-dark); }
 .score-card.foe { border-color: #1f5b6b; }
-.you-tag { font-size: 11px; font-weight: 800; background: var(--ember); color: #1a0e05; border-radius: 4px; padding: 2px 6px; }
+.you-tag { font-size: 11px; font-weight: 800; background: var(--ember); color: #1a0e05; border-radius: 4px; padding: 2px 6px; flex: none; }
+.leave-btn {
+  flex: none; background: transparent; border: 1px solid var(--line);
+  color: var(--muted); border-radius: 6px; padding: 4px 10px;
+  font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.leave-btn:hover { color: var(--danger); border-color: var(--danger); }
 
 #table {
   display: block; width: 100%; height: auto; max-width: 100%; aspect-ratio: 1 / 2;
@@ -173,8 +167,6 @@ input:focus { outline: 2px solid var(--ember); border-color: var(--ember); }
   .topbar { padding: 8px 10px; }
   .brand { font-size: 15px; }
   .score-card { padding: 6px 10px; gap: 8px; }
-  .game-bar { font-size: 13px; padding: 6px 8px; }
-  #game-status { flex-basis: 100%; }
 }
 
 /* Short viewports (small laptops, landscape phones): shrink everything
@@ -184,13 +176,11 @@ input:focus { outline: 2px solid var(--ember); border-color: var(--ember); }
   main { padding-top: 10px; padding-bottom: 16px; }
   .table-col { gap: 6px; }
   .table-col {
-    width: min(92vw, 420px, calc((100vh - 215px) * 0.5));
-    width: min(92vw, 420px, calc((100dvh - 215px) * 0.5));
+    width: min(92vw, 440px, calc((100vh - 175px) * 0.5));
+    width: min(92vw, 440px, calc((100dvh - 175px) * 0.5));
   }
   .score-card { padding: 5px 10px; }
   .score-card .sc { font-size: 20px; }
-  .game-bar { padding: 6px 8px; font-size: 13px; }
-  #view-game .hint { display: none; }
   .count-num { font-size: min(72px, 22vmin); }
   .flash-text { font-size: min(44px, 12vmin); }
   .ov-box h2 { font-size: 18px; }
