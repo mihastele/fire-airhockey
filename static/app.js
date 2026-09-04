@@ -170,6 +170,8 @@ function onError(msg) {
 function show(id) {
   for (const v of ["view-nick", "view-lobby", "view-game"]) $(v).hidden = v !== id;
   if (id === "view-game") requestFit();
+  // Support pill lives on the name/lobby screens only.
+  $("coffee").hidden = id === "view-game";
 }
 function toast(text) {
   const el = $("toast");
