@@ -169,6 +169,7 @@ function onError(msg) {
 /* ---------- screens ---------- */
 function show(id) {
   for (const v of ["view-nick", "view-lobby", "view-game"]) $(v).hidden = v !== id;
+  if (id === "view-game") requestFit();
 }
 function toast(text) {
   const el = $("toast");
@@ -346,6 +347,7 @@ function updateRoomUI() {
   scoreCard($("score-top"), topSeat(), topSeat() === store.seat ? "YOU" : "");
   scoreCard($("score-bottom"), bottomSeat(),
     bottomSeat() === store.seat ? "YOU" : (store.seat === -1 ? "SPEC" : ""));
+  requestFit();
 }
 
 // Per-snapshot (30 Hz) lightweight updates: scores, countdown, overlays.
@@ -402,6 +404,50 @@ function fitCanvas() {
 }
 window.addEventListener("resize", fitCanvas);
 fitCanvas();
+
+/* ---------- responsive fit: whole column fits the viewport ----------
+ * CSS `min(...vh...)` handles the common cases; this measures the real
+ * chrome (topbar, scores, bar, hint) so short screens fit exactly. */
+function fitGame() {
+  if ($("view-game").hidden) return;
+  const main = document.querySelector("main");
+  const col = document.querySelector(".table-col");
+  if (!main || !col) return;
+  const vpH = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+  const vpW = (window.visualViewport && window.visualViewport.width) || window.innerWidth;
+  const bar = document.querySelector(".topbar");
+  const topH = bar ? bar.getBoundingClientRect().height : 0;
+  const cs = getComputedStyle(main);
+  const pad = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+  let chrome = topH + pad + 16;
+  for (const id of ["score-top", "score-bottom"]) {
+    const el = $(id);
+    if (el) chrome += el.getBoundingClientRect().height + 8;
+  }
+  const gb = document.querySelector("#view-game .game-bar");
+  if (gb) chrome += gb.getBoundingClientRect().height + 8;
+  const hint = document.querySelector("#view-game .hint");
+  if (hint && getComputedStyle(hint).display !== "none") chrome += hint.getBoundingClientRect().height + 8;
+  const availH = vpH - chrome;
+  const availW = Math.min(vpW * 0.92, 440);
+  let w = Math.min(availW, availH / 2);
+  // Fit wins over the playability floor on extremely short screens.
+  if (w < 110 && availH / 2 > 80) w = availH / 2;
+  w = Math.min(Math.max(w, 110), 440);
+  if (w > availH / 2 && availH / 2 > 80) w = availH / 2;
+  col.style.width = Math.round(w) + "px";
+}
+let fitQueued = false;
+function requestFit() {
+  if (fitQueued) return;
+  fitQueued = true;
+  requestAnimationFrame(() => { fitQueued = false; try { fitGame(); } catch (e) {} });
+}
+window.addEventListener("resize", requestFit);
+window.addEventListener("orientationchange", requestFit);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", requestFit);
+}
 
 // Screen mapping for the current orientation.
 function X(cx) { return RAIL + (cx / 100) * (LW - 2 * RAIL); }
