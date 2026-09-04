@@ -12,5 +12,6 @@ RUN adduser -D -H -u 10001 app
 USER app
 EXPOSE 8080
 ENV PORT=8080
+ENV DOMAIN=""
 COPY --from=build /out/fire-airhockey /fire-airhockey
 ENTRYPOINT ["/fire-airhockey"]

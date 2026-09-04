@@ -46,6 +46,10 @@ cp .env.example .env     # set PORT=... to change the host port
 docker compose up --build -d
 ```
 
+Set `DOMAIN=https://example.com` in `.env` so SEO tags that require
+absolute URLs (`og:image`, `og:url`, `canonical`) use your public origin.
+When `DOMAIN` is empty the server falls back to the request Host.
+
 Then open `http://<your-host>:<PORT>` (default 8080) in a browser.
 The container runs the server as a non-root user on a read-only filesystem
 with no Linux capabilities.

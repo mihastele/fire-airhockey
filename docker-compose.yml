@@ -7,6 +7,10 @@ services:
       - "${PORT:-8080}:8080"
     environment:
       PORT: 8080
+      # Public site origin used for absolute SEO tags (og:image, og:url,
+      # canonical). Set DOMAIN=https://example.com in .env; when empty the
+      # server falls back to the request Host.
+      DOMAIN: ${DOMAIN:-}
     restart: unless-stopped
     # Least privilege: read-only filesystem, no new privileges, no
     # capabilities (the server only needs stdout and its high port).
