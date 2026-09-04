@@ -112,36 +112,35 @@ input:focus { outline: 2px solid var(--ember); border-color: var(--ember); }
 .badge.live { color: var(--ember); border-color: var(--ember-dark); }
 .badge.open { color: var(--win); border-color: #3c6b3c; }
 
-/* Game */
-.game { display: flex; justify-content: center; }
-.table-col { display: flex; flex-direction: column; gap: 8px; width: min(92vw, 400px); }
-.game-bar {
-  display: flex; align-items: center; gap: 8px;
-  background: var(--panel); border: 1px solid var(--line);
-  border-radius: 8px; padding: 8px 10px; font-size: 14px;
+/* Game — score cards + board always fit the viewport. */
+.game { display: flex; justify-content: center; align-items: flex-start; width: 100%; }
+.table-col {
+  display: flex; flex-direction: column; gap: 8px;
+  width: min(92vw, 440px, calc((100vh - 250px) * 0.5));
+  width: min(92vw, 440px, calc((100dvh - 250px) * 0.5));
+  min-width: 0;
 }
-.game-bar .spacer { flex: 1; }
-.code-chip {
-  font-weight: 800; letter-spacing: 1px; white-space: nowrap;
-  background: #100d0b; border: 1px solid var(--ember-dark); color: var(--ember);
-  border-radius: 6px; padding: 4px 8px;
-}
-.hint.center { text-align: center; }
 .count-label { font-size: 15px; color: var(--muted); letter-spacing: 2px; }
 
 .score-card {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 10px; min-width: 0;
   background: var(--panel); border: 1px solid var(--line);
   border-radius: 8px; padding: 8px 14px;
 }
-.score-card .nm { flex: 1; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.score-card .sc { font-size: 28px; font-weight: 800; }
+.score-card .nm { flex: 1 1 auto; min-width: 0; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.score-card .sc { font-size: clamp(20px, 5.5vw + 8px, 28px); font-weight: 800; flex: none; }
 .score-card.me { border-color: var(--ember-dark); }
 .score-card.foe { border-color: #1f5b6b; }
-.you-tag { font-size: 11px; font-weight: 800; background: var(--ember); color: #1a0e05; border-radius: 4px; padding: 2px 6px; }
+.you-tag { font-size: 11px; font-weight: 800; background: var(--ember); color: #1a0e05; border-radius: 4px; padding: 2px 6px; flex: none; }
+.leave-btn {
+  flex: none; background: transparent; border: 1px solid var(--line);
+  color: var(--muted); border-radius: 6px; padding: 4px 10px;
+  font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.leave-btn:hover { color: var(--danger); border-color: var(--danger); }
 
 #table {
-  display: block; width: 100%; aspect-ratio: 1 / 2;
+  display: block; width: 100%; height: auto; max-width: 100%; aspect-ratio: 1 / 2;
   border-radius: 12px; touch-action: none; cursor: crosshair;
   background: #0b1512;
 }
@@ -150,23 +149,61 @@ input:focus { outline: 2px solid var(--ember); border-color: var(--ember); }
   background: rgba(10, 8, 6, 0.72); border-radius: 12px; text-align: center; padding: 16px;
 }
 .overlay.transparent { background: transparent; pointer-events: none; }
-.ov-box { max-width: 320px; }
-.ov-box h2 { font-size: 22px; }
-.count-num { font-size: 110px; font-weight: 800; color: var(--ember); }
-.flash-text { font-size: 64px; font-weight: 800; color: var(--ember); }
+.ov-box { max-width: min(320px, 100%); width: 100%; }
+.ov-box h2 { font-size: clamp(18px, 4.5vw + 10px, 22px); }
+.count-num { font-size: min(110px, 28vmin); font-weight: 800; color: var(--ember); }
+.flash-text { font-size: min(64px, 15vmin); font-weight: 800; color: var(--ember); }
 .flash-text.bad { color: var(--ice); }
 .invite-row { display: flex; gap: 8px; margin: 10px 0; }
-.invite-row input { font-size: 13px; }
+.invite-row input { font-size: 13px; min-width: 0; flex: 1 1 auto; }
 .wait-players { margin: 10px 0; font-size: 14px; }
 .wait-players .p { padding: 2px 0; }
 
-.canvas-wrap { position: relative; width: 100%; }
+.canvas-wrap { position: relative; width: 100%; min-width: 0; }
+
+/* Narrow phones: tighter chrome so board + scores keep fitting. */
+@media (max-width: 420px) {
+  main { padding: 12px 10px 28px; }
+  .topbar { padding: 8px 10px; }
+  .brand { font-size: 15px; }
+  .score-card { padding: 6px 10px; gap: 8px; }
+}
+
+/* Short viewports (small laptops, landscape phones): shrink everything
+ * around the board and re-budget the board width so the full column —
+ * top score + board + bottom score + bar — fits without scrolling. */
+@media (max-height: 720px) {
+  main { padding-top: 10px; padding-bottom: 16px; }
+  .table-col { gap: 6px; }
+  .table-col {
+    width: min(92vw, 440px, calc((100vh - 175px) * 0.5));
+    width: min(92vw, 440px, calc((100dvh - 175px) * 0.5));
+  }
+  .score-card { padding: 5px 10px; }
+  .score-card .sc { font-size: 20px; }
+  .count-num { font-size: min(72px, 22vmin); }
+  .flash-text { font-size: min(44px, 12vmin); }
+  .ov-box h2 { font-size: 18px; }
+}
 
 .toast {
   position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
   background: var(--panel-2); border: 1px solid var(--ember);
   border-radius: 8px; padding: 10px 18px; font-weight: 600; z-index: 20;
 }
+
+/* Support link: fixed pill on the name/lobby screens so it is visible
+ * without scrolling on any screen; hidden in-game so it never covers play. */
+.coffee {
+  position: fixed; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); left: 50%;
+  transform: translateX(-50%); z-index: 10;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 600; color: var(--muted); text-decoration: none;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 20px;
+  padding: 6px 12px; opacity: 0.85; white-space: nowrap;
+}
+.coffee:hover { color: var(--ember); border-color: var(--ember-dark); opacity: 1; }
+.coffee svg { display: block; }
 
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }

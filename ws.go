@@ -23,8 +23,10 @@ import (
 
 const wsGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
-// wsMaxMessage caps a single reassembled message at 1 MiB.
-const wsMaxMessage = 1 << 20
+// wsMaxMessage caps a single reassembled message at 4 KiB. The protocol's
+// largest legitimate message (create/hello with a 48-char title) is well
+// under 1 KiB; anything bigger is abuse, not play.
+const wsMaxMessage = 4 << 10
 
 var errWSClosed = errors.New("websocket closed")
 
@@ -225,4 +227,10 @@ func writeFull(conn net.Conn, p []byte) (int, error) {
 // Close closes the underlying connection.
 func (c *WSConn) Close() error {
 	return c.conn.Close()
+}
+
+// SetReadDeadline bounds how long a read may block: refreshed before every
+// ReadMessage so silent connections cannot park a goroutine forever.
+func (c *WSConn) SetReadDeadline(t time.Time) error {
+	return c.conn.SetReadDeadline(t)
 }
