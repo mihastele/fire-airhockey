@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Fire Air Hockey</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="puck-dot" aria-hidden="true"></span><span>Fire&nbsp;Air&nbsp;Hockey</span></div>
+  <div class="top-right">
+    <span id="conn" class="conn off" title="connection status">connecting…</span>
+    <span id="who" class="who"></span>
+  </div>
+</header>
+
+<main>
+  <!-- 1. Nickname -->
+  <section id="view-nick" class="card narrow">
+    <h1>Fire Air Hockey</h1>
+    <p class="muted">Real-time multiplayer. First to 7 wins.</p>
+    <p id="join-note" class="join-note" hidden></p>
+    <label class="field">
+      <span>Your nickname</span>
+      <input id="nick" maxlength="16" placeholder="e.g. Lightning" autocomplete="off">
+    </label>
+    <button id="btn-enter" class="btn primary">Enter lobby</button>
+    <p class="hint">Tip: open the game link in a second window to play against yourself while testing.</p>
+  </section>
+
+  <!-- 2. Lobby -->
+  <section id="view-lobby" class="lobby" hidden>
+    <div class="lobby-actions card">
+      <h2>Find a game</h2>
+      <label class="field">
+        <span>Table name (optional)</span>
+        <input id="room-title" maxlength="48" placeholder="Friday showdown" autocomplete="off">
+      </label>
+      <div class="btn-row">
+        <button id="btn-public" class="btn primary">Create public table</button>
+        <button id="btn-private" class="btn">Create private table</button>
+        <button id="btn-cpu" class="btn">Practice vs CPU</button>
+      </div>
+      <div class="join-row">
+        <input id="join-code" maxlength="12" placeholder="Have a code or link? paste it" autocomplete="off" spellcheck="false">
+        <button id="btn-join" class="btn">Join</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Public tables <span id="room-count" class="muted"></span></h2>
+      <div id="rooms"><p class="muted">No public tables right now — create one above.</p></div>
+    </div>
+  </section>
+
+  <!-- 3. Game -->
+  <section id="view-game" class="game" hidden>
+    <div class="game-layout">
+      <div class="table-col">
+        <div id="score-top" class="score-card"></div>
+        <div class="canvas-wrap">
+          <canvas id="table"></canvas>
+          <div id="ov-wait" class="overlay" hidden>
+            <div class="ov-box">
+              <h2>Waiting for opponent…</h2>
+              <p class="muted">Share this link — anyone opening it joins your table:</p>
+              <div class="invite-row">
+                <input id="invite-link" readonly spellcheck="false">
+                <button id="btn-copy" class="btn small">Copy</button>
+              </div>
+              <div id="wait-players" class="wait-players"></div>
+              <button id="btn-addcpu" class="btn">Play CPU instead</button>
+            </div>
+          </div>
+          <div id="ov-count" class="overlay transparent" hidden><div id="count-num" class="count-num">3</div></div>
+          <div id="ov-flash" class="overlay transparent" hidden><div id="flash-text" class="flash-text">GOAL!</div></div>
+          <div id="ov-over" class="overlay" hidden>
+            <div class="ov-box">
+              <h2 id="over-title">You win!</h2>
+              <p id="over-sub" class="muted"></p>
+              <div class="btn-row center">
+                <button id="btn-rematch" class="btn primary">Rematch</button>
+                <button id="btn-lobby" class="btn">Back to lobby</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="score-bottom" class="score-card"></div>
+      </div>
+      <aside class="side-col card">
+        <h3 id="side-title">Table</h3>
+        <div id="side-players"></div>
+        <div class="invite-row">
+          <input id="invite-link-2" readonly spellcheck="false" aria-label="invite link">
+          <button id="btn-copy-2" class="btn small">Copy link</button>
+        </div>
+        <div class="btn-col">
+          <button id="btn-addcpu-2" class="btn">Add CPU opponent</button>
+          <button id="btn-rematch-2" class="btn">Rematch</button>
+          <button id="btn-leave" class="btn danger">Leave table</button>
+        </div>
+        <p class="hint">Drag your mallet with mouse or finger. You always play from the bottom — your opponent sees the mirrored side.</p>
+      </aside>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="/app.js"></script>
+</body>
+</html>

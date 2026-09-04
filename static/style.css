@@ -1,0 +1,150 @@
+/* Fire Air Hockey — warm charcoal + ember theme. Solid colors, no gradients. */
+:root {
+  --bg: #141110;
+  --panel: #1f1a16;
+  --panel-2: #28211c;
+  --line: #3a3129;
+  --text: #f5efe6;
+  --muted: #b3a696;
+  --ember: #ff5a1f;
+  --ember-dark: #b73a0e;
+  --ice: #46d9ff;
+  --win: #7dd87d;
+  --danger: #e05252;
+  --radius: 10px;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif;
+  min-height: 100vh;
+}
+
+/* Top bar */
+.topbar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 16px;
+  background: var(--panel);
+  border-bottom: 2px solid var(--ember-dark);
+  position: sticky; top: 0; z-index: 5;
+}
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: 1px; font-size: 17px; }
+.puck-dot { width: 18px; height: 18px; border-radius: 50%; background: var(--ember); display: inline-block; }
+.top-right { display: flex; align-items: center; gap: 12px; font-size: 14px; }
+.conn { font-size: 13px; color: var(--muted); }
+.conn.on { color: var(--win); }
+.conn.off { color: var(--danger); }
+.who { font-weight: 700; color: var(--ember); }
+
+main { max-width: 1060px; margin: 0 auto; padding: 18px 14px 40px; }
+h1 { margin: 0 0 4px; font-size: 30px; }
+h2 { margin: 0 0 12px; font-size: 19px; }
+h3 { margin: 0 0 10px; font-size: 16px; }
+.muted { color: var(--muted); }
+.hint { color: var(--muted); font-size: 13px; line-height: 1.5; }
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 16px;
+}
+.card.narrow { max-width: 440px; margin: 30px auto; }
+.join-note { background: var(--panel-2); border: 1px solid var(--ember-dark); border-radius: 8px; padding: 8px 10px; }
+
+.field { display: block; margin: 12px 0; }
+.field span { display: block; font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+input {
+  width: 100%; padding: 10px 12px; font-size: 16px;
+  background: #100d0b; color: var(--text);
+  border: 1px solid var(--line); border-radius: 8px;
+}
+input:focus { outline: 2px solid var(--ember); border-color: var(--ember); }
+
+.btn {
+  background: var(--panel-2); color: var(--text);
+  border: 1px solid var(--line); border-radius: 8px;
+  padding: 10px 16px; font-size: 15px; font-weight: 600; cursor: pointer;
+}
+.btn:hover { border-color: var(--ember); }
+.btn.primary { background: var(--ember); border-color: var(--ember); color: #1a0e05; }
+.btn.primary:hover { background: #ff6c38; }
+.btn.danger { color: var(--danger); }
+.btn.small { padding: 8px 12px; font-size: 14px; white-space: nowrap; }
+.btn:disabled { opacity: 0.45; cursor: default; }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+.btn-row.center { justify-content: center; }
+.btn-col { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+
+/* Lobby */
+.lobby { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+@media (max-width: 760px) { .lobby { grid-template-columns: 1fr; } }
+.join-row { display: flex; gap: 8px; margin-top: 4px; }
+.room-row {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: 8px; padding: 10px 12px; margin-bottom: 8px;
+}
+.room-row .info { flex: 1; min-width: 0; }
+.room-row .title { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-row .sub { font-size: 13px; color: var(--muted); }
+.badge {
+  font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 20px;
+  background: #100d0b; border: 1px solid var(--line); color: var(--muted); white-space: nowrap;
+}
+.badge.live { color: var(--ember); border-color: var(--ember-dark); }
+.badge.open { color: var(--win); border-color: #3c6b3c; }
+
+/* Game */
+.game-layout { display: flex; gap: 16px; align-items: flex-start; justify-content: center; }
+.table-col { display: flex; flex-direction: column; gap: 8px; }
+.side-col { width: 250px; flex-shrink: 0; }
+@media (max-width: 760px) { .game-layout { flex-direction: column; align-items: center; } .side-col { width: 100%; max-width: 420px; } }
+
+.score-card {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; padding: 8px 14px;
+}
+.score-card .nm { flex: 1; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.score-card .sc { font-size: 28px; font-weight: 800; }
+.score-card.me { border-color: var(--ember-dark); }
+.score-card.foe { border-color: #1f5b6b; }
+.you-tag { font-size: 11px; font-weight: 800; background: var(--ember); color: #1a0e05; border-radius: 4px; padding: 2px 6px; }
+
+.canvas-wrap { position: relative; width: min(92vw, 400px); }
+#table {
+  display: block; width: 100%; aspect-ratio: 1 / 2;
+  border-radius: 12px; touch-action: none; cursor: crosshair;
+  background: #0b1512;
+}
+.overlay {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  background: rgba(10, 8, 6, 0.72); border-radius: 12px; text-align: center; padding: 16px;
+}
+.overlay.transparent { background: transparent; pointer-events: none; }
+.ov-box { max-width: 320px; }
+.ov-box h2 { font-size: 22px; }
+.count-num { font-size: 110px; font-weight: 800; color: var(--ember); }
+.flash-text { font-size: 64px; font-weight: 800; color: var(--ember); }
+.flash-text.bad { color: var(--ice); }
+.invite-row { display: flex; gap: 8px; margin: 10px 0; }
+.invite-row input { font-size: 13px; }
+.wait-players { margin: 10px 0; font-size: 14px; }
+.wait-players .p { padding: 2px 0; }
+
+.side-players .p { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.side-players .p:last-child { border-bottom: none; }
+
+.toast {
+  position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+  background: var(--panel-2); border: 1px solid var(--ember);
+  border-radius: 8px; padding: 10px 18px; font-weight: 600; z-index: 20;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
