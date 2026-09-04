@@ -353,11 +353,12 @@ func (r *Room) tick(dt float64) bool {
 func (r *Room) stepPlay(dt float64) {
 	r.stepPaddles(dt)
 
-	// Friction.
+	// Friction. Squared-speed compares avoid a sqrt on the hot path; the
+	// single Exp per tick is the only transcendental left here.
 	damp := math.Exp(-PuckFriction * dt)
 	r.puckVX *= damp
 	r.puckVY *= damp
-	if math.Hypot(r.puckVX, r.puckVY) < PuckStop {
+	if r.puckVX*r.puckVX+r.puckVY*r.puckVY < PuckStop*PuckStop {
 		r.puckVX, r.puckVY = 0, 0
 	}
 	r.puckX += r.puckVX * dt
@@ -397,10 +398,11 @@ func (r *Room) stepPlay(dt float64) {
 		r.puckVY = -r.puckVY * PuckRestWall
 	}
 
-	// Clamp runaway speed.
-	if sp := math.Hypot(r.puckVX, r.puckVY); sp > PuckMaxSpeed {
-		r.puckVX *= PuckMaxSpeed / sp
-		r.puckVY *= PuckMaxSpeed / sp
+	// Clamp runaway speed. Only the over-limit case pays for a sqrt.
+	if spSq := r.puckVX*r.puckVX + r.puckVY*r.puckVY; spSq > PuckMaxSpeed*PuckMaxSpeed {
+		scale := PuckMaxSpeed / math.Sqrt(spSq)
+		r.puckVX *= scale
+		r.puckVY *= scale
 	}
 }
 
@@ -417,7 +419,17 @@ func (r *Room) goal(by int) {
 
 // stepPaddles drives every paddle toward its target with a speed cap so
 // inputs stay smooth and teleporting across the table is impossible.
+//
+// Hot path (60 Hz per room): idle paddles (target reached, the common case)
+// exit on a cheap compare with no sqrt; paddles that reach their target this
+// tick snap without any divide; only a genuinely capped stride pays for one
+// sqrt via a single reciprocal. Behavior matches the old formulation exactly:
+// velocity is dx/dt when the target is reached, capped-stride velocity
+// otherwise, with the same 1e-6 dead zone.
 func (r *Room) stepPaddles(dt float64) {
+	maxStep := PadMaxSpeed * dt
+	maxStepSq := maxStep * maxStep
+	invDt := 1 / dt
 	for seat := 0; seat < 2; seat++ {
 		p := r.players[seat]
 		if p == nil {
@@ -427,16 +439,21 @@ func (r *Room) stepPaddles(dt float64) {
 			r.botAI(seat, p)
 		}
 		dx, dy := p.TX-p.PX, p.TY-p.PY
-		dist := math.Hypot(dx, dy)
-		maxStep := PadMaxSpeed * dt
-		var vx, vy float64
-		if dist > 1e-6 {
-			step := math.Min(dist, maxStep)
-			vx, vy = dx/dist*step/dt, dy/dist*step/dt
-			p.PX += dx / dist * step
-			p.PY += dy / dist * step
+		distSq := dx*dx + dy*dy
+		if distSq < 1e-12 {
+			p.VX, p.VY = 0, 0
+			continue
 		}
-		p.VX, p.VY = vx, vy
+		if distSq <= maxStepSq {
+			p.PX, p.PY = p.TX, p.TY
+			p.VX, p.VY = dx*invDt, dy*invDt
+			continue
+		}
+		inv := 1 / math.Sqrt(distSq)
+		p.PX += dx * inv * maxStep
+		p.PY += dy * inv * maxStep
+		p.VX = dx * inv * PadMaxSpeed
+		p.VY = dy * inv * PadMaxSpeed
 	}
 }
 
@@ -489,11 +506,14 @@ func (r *Room) botAI(seat int, p *Player) {
 // velocity reflection that inherits part of the paddle's motion.
 func (r *Room) collidePaddle(p *Player) {
 	dx, dy := r.puckX-p.PX, r.puckY-p.PY
-	dist := math.Hypot(dx, dy)
 	minDist := PuckR + PadR
-	if dist >= minDist || dist < 1e-6 {
+	// Squared early-out: non-overlapping pairs (the common case) skip the
+	// sqrt entirely. Equivalent to the old dist>=minDist||dist<1e-6 test.
+	distSq := dx*dx + dy*dy
+	if distSq >= minDist*minDist || distSq < 1e-12 {
 		return
 	}
+	dist := math.Sqrt(distSq)
 	nx, ny := dx/dist, dy/dist
 	// Separate.
 	r.puckX = p.PX + nx*minDist

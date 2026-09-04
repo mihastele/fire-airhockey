@@ -120,6 +120,7 @@ function onLobby(msg) {
 }
 function onRoom(msg) {
   const first = !store.room;
+  if (msg.you !== store.seat) { ownPos = null; ownSrv = null; } // new seat/view: drop prediction
   store.room = msg;
   store.seat = msg.you;
   store.creating = false;
@@ -134,6 +135,7 @@ function onRoom(msg) {
     store.snap = null;
     store.prevScores = scoresOf(msg);
     // Park the mallet at home so the first input isn't a jump.
+    ownTarget = [0.5, 0.85];
     sendPaddle(0.5, 0.85, true);
   }
 }
@@ -404,12 +406,17 @@ const cv = $("table");
 const ctx = cv.getContext("2d");
 const LW = 500, LH = 1000, S = 5, RAIL = 20; // logical px; S maps 100x200 units
 let trail = [];
+// Declared up here (before the first fitCanvas() call below) so the field
+// cache can be rebuilt during initial sizing without hitting TDZ errors.
+const COL = { you: "#ff5a1f", foe: "#46d9ff", line: "#2b6b5e", dim: "#8fa9a2" };
+let fieldCache = null; // prerendered static field, rebuilt by fitCanvas
 
 function fitCanvas() {
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   cv.width = LW * dpr;
   cv.height = LH * dpr;
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  rebuildFieldCache();
 }
 window.addEventListener("resize", fitCanvas);
 fitCanvas();
@@ -467,53 +474,72 @@ function Y(cy) {
 function SY(cy) { return RAIL + (cy / 200) * (LH - 2 * RAIL); }
 function Y01(cy) { return Y(cy) / LH; }
 
-const COL = { you: "#ff5a1f", foe: "#46d9ff", line: "#2b6b5e", dim: "#8fa9a2" };
-
-function drawTable() {
-  ctx.clearRect(0, 0, LW, LH);
-  ctx.fillStyle = "#0b1512";
-  ctx.fillRect(0, 0, LW, LH);
+// Static field layer, prerendered once to an offscreen canvas and blitted
+// each frame. Rails, markings and dots never change, so repainting them at
+// 60 fps was the bulk of the render cost; only the name labels stay dynamic.
+function rebuildFieldCache() {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  fieldCache = document.createElement("canvas");
+  fieldCache.width = Math.max(1, Math.round(LW * dpr));
+  fieldCache.height = Math.max(1, Math.round(LH * dpr));
+  const g = fieldCache.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  paintField(g);
+}
+function paintField(g) {
+  g.clearRect(0, 0, LW, LH);
+  g.fillStyle = "#0b1512";
+  g.fillRect(0, 0, LW, LH);
 
   // Rails with goal mouths top/bottom.
   const mouth = (15 / 100) * (LW - 2 * RAIL); // GoalHalf*2 in px
   const cx0 = LW / 2 - mouth, cx1 = LW / 2 + mouth;
-  ctx.strokeStyle = "#3a3129";
-  ctx.lineWidth = RAIL;
-  ctx.lineCap = "butt";
+  g.strokeStyle = "#3a3129";
+  g.lineWidth = RAIL;
+  g.lineCap = "butt";
   const yT = RAIL / 2, yB = LH - RAIL / 2;
   // top rail segments
-  ctx.beginPath(); ctx.moveTo(0, yT); ctx.lineTo(cx0, yT); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(cx1, yT); ctx.lineTo(LW, yT); ctx.stroke();
+  g.beginPath(); g.moveTo(0, yT); g.lineTo(cx0, yT); g.stroke();
+  g.beginPath(); g.moveTo(cx1, yT); g.lineTo(LW, yT); g.stroke();
   // bottom rail segments
-  ctx.beginPath(); ctx.moveTo(0, yB); ctx.lineTo(cx0, yB); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(cx1, yB); ctx.lineTo(LW, yB); ctx.stroke();
+  g.beginPath(); g.moveTo(0, yB); g.lineTo(cx0, yB); g.stroke();
+  g.beginPath(); g.moveTo(cx1, yB); g.lineTo(LW, yB); g.stroke();
   // side rails
-  ctx.beginPath(); ctx.moveTo(RAIL / 2, 0); ctx.lineTo(RAIL / 2, LH); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(LW - RAIL / 2, 0); ctx.lineTo(LW - RAIL / 2, LH); ctx.stroke();
+  g.beginPath(); g.moveTo(RAIL / 2, 0); g.lineTo(RAIL / 2, LH); g.stroke();
+  g.beginPath(); g.moveTo(LW - RAIL / 2, 0); g.lineTo(LW - RAIL / 2, LH); g.stroke();
   // glowing goal mouths (static: YOU always at the bottom)
   const gyT = SY(0), gyB = SY(200);
-  ctx.strokeStyle = COL.foe; ctx.lineWidth = 5;
-  ctx.beginPath(); ctx.moveTo(cx0, gyT); ctx.lineTo(cx1, gyT); ctx.stroke();
-  ctx.strokeStyle = COL.you;
-  ctx.beginPath(); ctx.moveTo(cx0, gyB); ctx.lineTo(cx1, gyB); ctx.stroke();
+  g.strokeStyle = COL.foe; g.lineWidth = 5;
+  g.beginPath(); g.moveTo(cx0, gyT); g.lineTo(cx1, gyT); g.stroke();
+  g.strokeStyle = COL.you;
+  g.beginPath(); g.moveTo(cx0, gyB); g.lineTo(cx1, gyB); g.stroke();
 
   // Markings (orientation-independent: center is center).
-  ctx.strokeStyle = COL.line; ctx.lineWidth = 4;
-  ctx.beginPath(); ctx.moveTo(RAIL, LH / 2); ctx.lineTo(LW - RAIL, LH / 2); ctx.stroke();
-  ctx.strokeStyle = COL.you;
-  ctx.beginPath(); ctx.arc(LW / 2, LH / 2, 62, 0, Math.PI * 2); ctx.stroke();
-  ctx.fillStyle = COL.you;
-  ctx.beginPath(); ctx.arc(LW / 2, LH / 2, 6, 0, Math.PI * 2); ctx.fill();
+  g.strokeStyle = COL.line; g.lineWidth = 4;
+  g.beginPath(); g.moveTo(RAIL, LH / 2); g.lineTo(LW - RAIL, LH / 2); g.stroke();
+  g.strokeStyle = COL.you;
+  g.beginPath(); g.arc(LW / 2, LH / 2, 62, 0, Math.PI * 2); g.stroke();
+  g.fillStyle = COL.you;
+  g.beginPath(); g.arc(LW / 2, LH / 2, 6, 0, Math.PI * 2); g.fill();
   // creases
-  ctx.strokeStyle = COL.line;
-  ctx.beginPath(); ctx.arc(LW / 2, gyT, 58, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
-  ctx.beginPath(); ctx.arc(LW / 2, gyB, 58, 1.15 * Math.PI, 1.85 * Math.PI); ctx.stroke();
+  g.strokeStyle = COL.line;
+  g.beginPath(); g.arc(LW / 2, gyT, 58, 0.15 * Math.PI, 0.85 * Math.PI); g.stroke();
+  g.beginPath(); g.arc(LW / 2, gyB, 58, 1.15 * Math.PI, 1.85 * Math.PI); g.stroke();
   // faceoff dots
-  ctx.fillStyle = COL.dim;
+  g.fillStyle = COL.dim;
   for (const [fx, fy] of [[30, 55], [70, 55], [30, 145], [70, 145]]) {
-    ctx.beginPath(); ctx.arc(X(fx), SY(fy), 5, 0, Math.PI * 2); ctx.fill();
+    g.beginPath(); g.arc(X(fx), SY(fy), 5, 0, Math.PI * 2); g.fill();
   }
-  // name labels (static screen spots: opponent on top, YOU at bottom)
+}
+
+function drawTable() {
+  if (fieldCache) {
+    ctx.clearRect(0, 0, LW, LH);
+    ctx.drawImage(fieldCache, 0, 0, LW, LH);
+  } else {
+    paintField(ctx);
+  }
+  // name labels (dynamic screen spots: opponent on top, YOU at bottom)
   ctx.font = "700 17px sans-serif";
   ctx.textAlign = "center";
   ctx.fillStyle = "#7d8b87";
@@ -536,16 +562,22 @@ function drawSprite(sx, sy, rad, color, dome) {
     ctx.beginPath(); ctx.arc(sx - r * 0.15, sy - r * 0.18, r * 0.16, 0, Math.PI * 2);
     ctx.fillStyle = "rgba(255,255,255,0.85)"; ctx.fill();
   } else {
-    ctx.save();
-    ctx.shadowColor = color; ctx.shadowBlur = 18;
+    // Cheap glow: a translucent disc instead of shadowBlur, which forces an
+    // expensive extra blur pass on most browsers every frame.
+    ctx.fillStyle = "rgba(255,122,60,0.22)";
+    ctx.beginPath(); ctx.arc(sx, sy, r * 1.18, 0, Math.PI * 2); ctx.fill();
     ctx.beginPath(); ctx.arc(sx, sy, r * 0.62, 0, Math.PI * 2);
     ctx.fillStyle = color; ctx.fill();
-    ctx.restore();
   }
 }
 
+let lastFrameT = 0;
 function render(now) {
   requestAnimationFrame(render);
+  // Frame delta for the local paddle prediction below; clamped so a
+  // backgrounded tab doesn't teleport the mallet on return.
+  const frameDt = lastFrameT ? Math.min(0.05, Math.max(0, (now - lastFrameT) / 1000)) : 0;
+  lastFrameT = now;
   if ($("view-game").hidden) return;
   drawTable();
   const s = store.snap;
@@ -557,35 +589,85 @@ function render(now) {
   const sx = X(px), sy = Y(py);
   trail.push([sx, sy]);
   if (trail.length > 14) trail.shift();
+  // One fillStyle + per-segment alpha: no rgba() string garbage per frame.
+  ctx.fillStyle = "#ff7a3c";
   for (let i = 0; i < trail.length; i++) {
-    const a = (i / trail.length) * 0.35;
-    ctx.fillStyle = `rgba(255,122,60,${a.toFixed(3)})`;
-    ctx.beginPath(); ctx.arc(trail[i][0], trail[i][1], 4 + (i / trail.length) * 9, 0, Math.PI * 2); ctx.fill();
+    const f = i / trail.length;
+    ctx.globalAlpha = f * 0.35;
+    ctx.beginPath(); ctx.arc(trail[i][0], trail[i][1], 4 + f * 9, 0, Math.PI * 2); ctx.fill();
   }
+  ctx.globalAlpha = 1;
   drawSprite(sx, sy, 3.0 * S, "#ff7a3c", false);
-  // Paddles.
+  // Paddles. The opponent rides the 30 Hz snapshot; our own mallet is
+  // predicted locally toward the pointer (same speed cap as the server) so
+  // it tracks the mouse with no network round-trip behind it.
+  const ownT = ownTargetCanonical();
   for (let i = 0; i < 2; i++) {
     const p = s.pads[i];
     if (!p) continue;
+    let cx = p[0], cy = p[1];
+    if (ownT && i === store.seat && frameDt > 0) {
+      if (!ownPos || !ownSrv) {
+        ownPos = [cx, cy]; ownSrv = [cx, cy];
+      } else {
+        // Snap only when the SERVER teleported between snapshots (serve
+        // reset): capped server motion is ~11 units per 30 Hz snapshot, so
+        // a 30-unit jump is a reset, not lag. Comparing server-vs-server
+        // (never prediction-vs-server) means long fast drags can't falsely
+        // yank the mallet back mid-stroke.
+        const jx = cx - ownSrv[0], jy = cy - ownSrv[1];
+        ownSrv = [cx, cy];
+        if (jx * jx + jy * jy > 900) ownPos = [cx, cy];
+      }
+      const dx = ownT[0] - ownPos[0], dy = ownT[1] - ownPos[1];
+      const maxStep = PAD_MAX_SPEED * frameDt;
+      const d2 = dx * dx + dy * dy;
+      if (d2 <= maxStep * maxStep) {
+        ownPos[0] = ownT[0]; ownPos[1] = ownT[1];
+      } else if (d2 > 0) {
+        const inv = 1 / Math.sqrt(d2);
+        ownPos[0] += dx * inv * maxStep; ownPos[1] += dy * inv * maxStep;
+      }
+      cx = ownPos[0]; cy = ownPos[1];
+    }
     const color = i === store.seat ? COL.you : COL.foe;
-    drawSprite(X(p[0]), Y(p[1]), 5.5 * S, color, true);
+    const ix = X(cx), iy = Y(cy);
+    drawSprite(ix, iy, 5.5 * S, color, true);
     if (i === store.seat) {
       ctx.strokeStyle = "rgba(255,255,255,0.5)";
       ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(X(p[0]), Y(p[1]), 5.5 * S * 1.25, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(ix, iy, 5.5 * S * 1.25, 0, Math.PI * 2); ctx.stroke();
     }
   }
 }
 requestAnimationFrame(render);
 
 /* ---------- input: pointer position is already in own-view space ---------- */
+// Server mirrors kept in one place: PadMaxSpeed caps the local prediction,
+// PadR bounds mirror setTarget's half-clamps so what you see is what the
+// physics gets.
+const PAD_MAX_SPEED = 340, PAD_R = 5.5, PAD_EDGE = 5.5 * 0.4;
 let lastSent = 0, lastXY = null;
+let ownTarget = null; // latest [fx, fy] in own-view 0..1 (self at the bottom)
+let ownPos = null;    // canonical [x, y] rendered for our paddle (prediction)
+let ownSrv = null;    // last server-seen pad pos, for teleport detection
+let paddleQueued = false;
 function pointerToOwnView(ev) {
   const rect = cv.getBoundingClientRect();
   const fx = clamp01((ev.clientX - rect.left) / rect.width);
   const fy = clamp01((ev.clientY - rect.top) / rect.height);
   // Stay on your own half (own-view y in [0.5, 1]).
   return [fx, Math.max(0.5, fy)];
+}
+// Canonical-unit version of the latest pointer, clamped exactly like the
+// server's setTarget. Returns null for spectators or before the first input.
+function ownTargetCanonical() {
+  if (!ownTarget || (store.seat !== 0 && store.seat !== 1)) return null;
+  const cx = Math.max(PAD_R, Math.min(100 - PAD_R, ownTarget[0] * 100));
+  let cy = store.seat === 1 ? (1 - ownTarget[1]) * 200 : ownTarget[1] * 200;
+  if (store.seat === 0) cy = Math.max(100 + PAD_EDGE, Math.min(200 - PAD_R, cy));
+  else cy = Math.max(PAD_R, Math.min(100 - PAD_EDGE, cy));
+  return [cx, cy];
 }
 function sendPaddle(fx, fy, force) {
   const now = performance.now();
@@ -594,18 +676,35 @@ function sendPaddle(fx, fy, force) {
   lastSent = now; lastXY = [fx, fy];
   send({ t: "paddle", x: +fx.toFixed(4), y: +fy.toFixed(4) });
 }
+// Aim stores the pointer and flushes at most once per animation frame:
+// pointermove can fire hundreds of times per second, and stringifying +
+// sending a message per event was the main input-side garbage source.
+function onAim(fx, fy) {
+  ownTarget = [fx, fy];
+  if (paddleQueued) return;
+  paddleQueued = true;
+  requestAnimationFrame(() => { paddleQueued = false; flushPaddle(); });
+}
+function flushPaddle() {
+  if (!ownTarget) return;
+  sendPaddle(ownTarget[0], ownTarget[1], false);
+}
 let dragging = false;
 cv.addEventListener("pointerdown", (ev) => {
   if (store.seat !== 0 && store.seat !== 1) return;
   dragging = true;
   try { cv.setPointerCapture(ev.pointerId); } catch (e) {}
   const [fx, fy] = pointerToOwnView(ev);
+  ownTarget = [fx, fy];
   sendPaddle(fx, fy, true);
 });
 cv.addEventListener("pointermove", (ev) => {
-  if (!dragging || (store.seat !== 0 && store.seat !== 1)) return;
+  if (store.seat !== 0 && store.seat !== 1) return;
+  // Touch/pen steer only while dragging; a mouse hovers — requiring a held
+  // button before the mallet responds is what made desktop control feel dead.
+  if (!dragging && ev.pointerType !== "mouse") return;
   const [fx, fy] = pointerToOwnView(ev);
-  sendPaddle(fx, fy, false);
+  onAim(fx, fy);
 });
 for (const ev of ["pointerup", "pointercancel", "pointerleave"]) {
   cv.addEventListener(ev, () => { dragging = false; });
@@ -712,6 +811,7 @@ function backToLobby() {
   send({ t: "leave" });
   store.room = null; store.snap = null; store.seat = -2; store.lastRoomId = null;
   trail = [];
+  ownTarget = null; ownPos = null; ownSrv = null;
   history.replaceState({}, "", "/");
   show("view-lobby");
 }
