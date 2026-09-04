@@ -24,9 +24,13 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"log"
+	"math"
 	"net/http"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 const botName = "CPU"
@@ -66,6 +70,10 @@ func NewHub() *Hub {
 
 // ServeWS upgrades the HTTP request and pumps messages until disconnect.
 func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
+	if !sameOrigin(r) {
+		http.Error(w, "cross-origin websocket rejected", http.StatusForbidden)
+		return
+	}
 	ws, err := HijackWS(w, r)
 	if err != nil {
 		return
@@ -73,6 +81,32 @@ func (h *Hub) ServeWS(w http.ResponseWriter, r *http.Request) {
 	log.Printf("ws connect from %s", r.RemoteAddr)
 	h.serveConn(ws)
 }
+
+// sameOrigin blocks cross-site WebSocket hijacking: a browser page on
+// another site must not be able to drive a victim's connection. Requests
+// without an Origin header (non-browser clients) are allowed; when present
+// it must match the request host.
+func sameOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(u.Host, r.Host)
+}
+
+// wsIdleTimeout bounds how long a connection may stay silent; the server
+// pings every 30 s and browsers answer automatically, so legitimate
+// clients never hit it.
+const wsIdleTimeout = 90 * time.Second
+
+// wsMsgPerSec caps inbound messages per connection per second. A live
+// player sends paddle updates at ~66 Hz; anything far above that is a
+// flood, and the connection is dropped.
+const wsMsgPerSec = 200
 
 // serveConn runs the lifecycle of one accepted socket.
 func (h *Hub) serveConn(ws *WSConn) {
@@ -106,10 +140,23 @@ func (h *Hub) serveConn(ws *WSConn) {
 		}
 	}()
 
+	msgs := 0
+	window := time.Now()
 	for {
+		if err := ws.SetReadDeadline(time.Now().Add(wsIdleTimeout)); err != nil {
+			return
+		}
 		raw, err := ws.ReadMessage()
 		if err != nil {
 			return
+		}
+		now := time.Now()
+		if now.Sub(window) >= time.Second {
+			window, msgs = now, 0
+		}
+		msgs++
+		if msgs > wsMsgPerSec {
+			return // flooding: drop the connection
 		}
 		c.handle(raw)
 	}
@@ -219,6 +266,9 @@ func (c *Client) handle(raw []byte) {
 		if room == nil || seat < 0 {
 			return
 		}
+		if math.IsNaN(in.X) || math.IsNaN(in.Y) || math.IsInf(in.X, 0) || math.IsInf(in.Y, 0) {
+			return // non-finite coordinates can never be a real pointer
+		}
 		x := clamp(in.X, 0, 1) * TableW
 		var y float64
 		if seat == 0 {
@@ -302,12 +352,16 @@ func cleanTitle(s string) string {
 }
 
 func cleanName(s string) string {
-	// Trim, collapse spaces, cap length. Keep it simple and safe for HTML
-	// (the frontend also injects names via textContent).
+	// Trim, collapse spaces, cap length. Control characters (including
+	// \r, NUL and bidi overrides) are dropped outright so names stay safe
+	// for HTML (the frontend also injects names via textContent) and logs.
 	out := make([]rune, 0, 20)
 	space := false
 	for _, r := range s {
-		if r == ' ' || r == '\t' || r == '\n' {
+		if unicode.IsControl(r) {
+			continue
+		}
+		if r == ' ' || r == '\t' {
 			if len(out) > 0 {
 				space = true
 			}

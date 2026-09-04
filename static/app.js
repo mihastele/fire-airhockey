@@ -279,15 +279,8 @@ function scoreCard(el, seatIdx, tag) {
   if (el._key === key) return;
   el._key = key;
   el.innerHTML = "";
-  const nm = document.createElement("span");
-  nm.className = "nm";
-  nm.textContent = name || (seatIdx === store.seat ? "…" : "Waiting…");
-  const score = document.createElement("span");
-  score.className = "sc";
-  score.textContent = sc;
-  el.append(nm);
-  if (tag) { const t = document.createElement("span"); t.className = "you-tag"; t.textContent = tag; el.append(t); }
-  el.append(score);
+  // Top (enemy) card mirrors the bottom one: action on the left, score on
+  // the right, so both scores sit at the same edge.
   if (el.id === "score-top") {
     const leave = document.createElement("button");
     leave.className = "leave-btn";
@@ -297,6 +290,15 @@ function scoreCard(el, seatIdx, tag) {
     leave.onclick = backToLobby;
     el.append(leave);
   }
+  const nm = document.createElement("span");
+  nm.className = "nm";
+  nm.textContent = name || (seatIdx === store.seat ? "…" : "Waiting…");
+  const score = document.createElement("span");
+  score.className = "sc";
+  score.textContent = sc;
+  el.append(nm);
+  if (tag) { const t = document.createElement("span"); t.className = "you-tag"; t.textContent = tag; el.append(t); }
+  el.append(score);
   el.classList.toggle("me", seatIdx === store.seat);
   el.classList.toggle("foe", seatIdx !== store.seat);
 }

@@ -25,7 +25,8 @@ You need Go 1.24+ (no other dependencies — the WebSocket layer is stdlib-only)
 
 ```sh
 go run .                 # serves on http://localhost:8080
-go run . -addr :9090     # custom address
+PORT=9090 go run .       # custom port via environment
+go run . -addr :9090     # custom address (overrides PORT)
 ```
 
 Then open the printed address in **two browser windows** (or send one player
@@ -37,6 +38,17 @@ Build a single self-contained binary (frontend is embedded):
 go build -o airhockey .
 ./airhockey
 ```
+
+Or run it containerized (needs Docker). The host port comes from `.env`:
+
+```sh
+cp .env.example .env     # set PORT=... to change the host port
+docker compose up --build -d
+```
+
+Then open `http://<your-host>:<PORT>` (default 8080) in a browser.
+The container runs the server as a non-root user on a read-only filesystem
+with no Linux capabilities.
 
 ## How it works
 

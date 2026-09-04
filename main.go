@@ -16,15 +16,22 @@ import (
 	"io/fs"
 	"log"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
+	"time"
 )
 
 //go:embed static
 var staticFS embed.FS
 
 func main() {
-	addr := flag.String("addr", ":8080", "listen address (host:port)")
+	addrFlag := flag.String("addr", "", "listen address (host:port); overrides $PORT")
 	flag.Parse()
+	listen := *addrFlag
+	if listen == "" {
+		listen = listenAddrFromEnv()
+	}
 
 	hub := NewHub()
 	sub, err := fs.Sub(staticFS, "static")
@@ -57,8 +64,49 @@ func main() {
 		http.ServeFileFS(w, r, sub, "index.html")
 	})
 
-	log.Printf("fire-airhockey serving on %s", *addr)
-	log.Fatal(http.ListenAndServe(*addr, mux))
+	// Timeouts bound slow-client attacks (e.g. Slowloris): headers must
+	// arrive fast, idle keep-alives are reaped. Hijacked WebSocket
+	// connections are managed by ws.go deadlines instead.
+	srv := &http.Server{
+		Addr:              listen,
+		Handler:           secureHeaders(mux),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+	log.Printf("fire-airhockey serving on %s", listen)
+	log.Fatal(srv.ListenAndServe())
+}
+
+// listenAddrFromEnv resolves the listen address from $PORT (a bare port
+// number such as 8080, or a full host:port), defaulting to :8080.
+// Invalid values fail fast instead of binding something surprising.
+func listenAddrFromEnv() string {
+	p := strings.TrimSpace(os.Getenv("PORT"))
+	if p == "" {
+		return ":8080"
+	}
+	if strings.Contains(p, ":") {
+		return p
+	}
+	if n, err := strconv.Atoi(p); err != nil || n < 1 || n > 65535 {
+		log.Fatalf("invalid PORT %q: must be a port 1-65535 or host:port", p)
+	}
+	return ":" + p
+}
+
+// secureHeaders sets baseline hardening headers on every response. The
+// frontend is same-origin files with no inline scripts, so a strict
+// default-src 'self' policy fits; framing is denied to block clickjacking.
+func secureHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; base-uri 'self'; frame-ancestors 'none'")
+		next.ServeHTTP(w, r)
+	})
 }
 
 func writeJSON(w http.ResponseWriter, v any) {
