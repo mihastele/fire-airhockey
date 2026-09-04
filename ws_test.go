@@ -12,7 +12,7 @@ import (
 func pipeConns(t *testing.T) (*WSConn, net.Conn) {
 	t.Helper()
 	a, b := net.Pipe()
-	return &WSConn{conn: a, br: bufio.NewReader(b)}, b
+	return &WSConn{conn: a, br: bufio.NewReader(a)}, b
 }
 
 func TestWriteShortFrameBytes(t *testing.T) {
@@ -22,9 +22,16 @@ func TestWriteShortFrameBytes(t *testing.T) {
 	got := make(chan []byte, 1)
 	go func() {
 		buf := make([]byte, 64)
+		total := 0
 		_ = peer.SetReadDeadline(time.Now().Add(2 * time.Second))
-		n, _ := peer.Read(buf)
-		got <- buf[:n]
+		for total < 4 {
+			n, err := peer.Read(buf[total:])
+			if err != nil {
+				break
+			}
+			total += n
+		}
+		got <- buf[:total]
 	}()
 	if err := ws.WriteMessage([]byte("hi")); err != nil {
 		t.Fatal(err)

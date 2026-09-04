@@ -152,14 +152,14 @@ func (h *Hub) disconnect(c *Client) {
 // ---- inbound messages ----
 
 type inbound struct {
-	T      string   `json:"t"`
-	Name   string   `json:"name"`
-	Room   string   `json:"room"`
-	Title  string   `json:"title"`
-	Public *bool    `json:"public"`
-	CPU    bool     `json:"cpu"`
-	X      float64  `json:"x"`
-	Y      float64  `json:"y"`
+	T      string  `json:"t"`
+	Name   string  `json:"name"`
+	Room   string  `json:"room"`
+	Title  string  `json:"title"`
+	Public *bool   `json:"public"`
+	CPU    bool    `json:"cpu"`
+	X      float64 `json:"x"`
+	Y      float64 `json:"y"`
 }
 
 func (c *Client) handle(raw []byte) {
@@ -406,12 +406,15 @@ func (h *Hub) roomLoop(r *Room) {
 			return
 		}
 		snapTick++
-		if out || (phase == PhasePlay && snapTick%SnapshotEvery == 0) {
-			h.broadcastRoom(r)
-			h.broadcastSnap(r)
-		}
 		if out {
+			h.broadcastRoom(r)
 			h.broadcastLobby()
+		}
+		// Live phases stream snapshots at ~30 Hz even when nothing
+		// "changed": countdowns tick and goal pauses animate. Phase
+		// transitions always set out, so they arrive immediately.
+		if out || ((phase == PhasePlay || phase == PhaseGoal || phase == PhaseCount) && snapTick%SnapshotEvery == 0) {
+			h.broadcastSnap(r)
 		}
 	}
 }
@@ -562,13 +565,13 @@ func snapMsg(r *Room) map[string]any {
 		}
 	}
 	return map[string]any{
-		"t":     "snap",
-		"tno":   r.tickNo,
-		"puck":  []float64{round1(r.puckX), round1(r.puckY), round1(r.puckVX), round1(r.puckVY)},
-		"pads":  pads,
-		"sc":    sc,
-		"ph":    string(r.phase),
-		"count": round1(r.countdown),
+		"t":      "snap",
+		"tno":    r.tickNo,
+		"puck":   []float64{round1(r.puckX), round1(r.puckY), round1(r.puckVX), round1(r.puckVY)},
+		"pads":   pads,
+		"sc":     sc,
+		"ph":     string(r.phase),
+		"count":  round1(r.countdown),
 		"scorer": r.scorer,
 		"winner": r.winner,
 	}

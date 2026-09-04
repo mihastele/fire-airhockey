@@ -22,19 +22,19 @@ const (
 	PadR     = 5.5
 	GoalHalf = 15.0 // half width of the goal mouth
 
-	TickHz          = 60
-	WinScore        = 7
-	CountdownSecs   = 3.0
-	GoalPauseSecs   = 1.5
-	PuckMaxSpeed    = 230.0
-	PuckFriction    = 0.35 // exponential damping, per second
-	PuckStop        = 0.6
-	PadMaxSpeed     = 340.0
-	PadHitBoost     = 0.45 // fraction of paddle velocity added to the puck
-	PuckRestWall    = 0.85
-	PuckRestPaddle  = 0.92
-	EmptyRoomTTL    = 45 * time.Second
-	SnapshotEvery   = 2 // broadcast a snapshot every N ticks (30 Hz)
+	TickHz         = 60
+	WinScore       = 7
+	CountdownSecs  = 3.0
+	GoalPauseSecs  = 1.5
+	PuckMaxSpeed   = 230.0
+	PuckFriction   = 0.35 // exponential damping, per second
+	PuckStop       = 0.6
+	PadMaxSpeed    = 340.0
+	PadHitBoost    = 0.45 // fraction of paddle velocity added to the puck
+	PuckRestWall   = 0.85
+	PuckRestPaddle = 0.92
+	EmptyRoomTTL   = 45 * time.Second
+	SnapshotEvery  = 2 // broadcast a snapshot every N ticks (30 Hz)
 )
 
 // Phase is the room's match state.
